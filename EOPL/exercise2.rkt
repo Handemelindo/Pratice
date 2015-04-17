@@ -342,3 +342,50 @@
                                         (var-exp 'y)
                                         (var-exp 'z))))))
 (check-equal? #t (occurs-free? 'x '(lambda (y) (lambda (z) (x (y z))))))
+
+;;2.16[*]
+(define lambda-exp-np
+  (lambda (bound-var body)
+    (list 'lambda bound-var body)))
+
+(define lambda-exp-np?
+  (lambda (lc-exp)
+    (and (= (length lc-exp) 3)
+         (eqv? (car lc-exp) 'lambda)
+         (or (null? (cadr lc-exp))
+             (var-exp? (cadr lc-exp))))))
+
+(define lambda-exp-np->bound-var
+  (lambda (lc-exp)
+    (var-exp->var (cadr lc-exp))))
+
+(define occurs-free-np?
+  (lambda (search-var exp)
+    (cond
+     ((var-exp? exp) (eqv? (var-exp->var exp) search-var))
+     ((lambda-exp-np? exp) (and
+                         (not (eqv? (lambda-exp-np->bound-var exp) search-var))
+                         (occurs-free-np? search-var (lambda-exp->body exp))))
+     (else (or
+            (occurs-free-np? search-var (app-exp->rator exp))
+            (occurs-free-np? search-var (app-exp->rand exp)))))))
+(check-equal? 'x (var-exp 'x))
+(check-equal? #t (occurs-free-np? 'x 'x))
+(check-equal? #f (occurs-free-np? 'x 'y))
+(check-equal? '(lambda x (x y))
+              (lambda-exp-np 'x (app-exp (var-exp 'x) (var-exp 'y))))
+(check-equal? #f (occurs-free-np? 'x '(lambda x (x y))))
+(check-equal? #t (occurs-free-np? 'x '(lambda y (x y))))
+(check-equal? '((lambda x x) (x y))
+              (app-exp (lambda-exp-np 'x (var-exp 'x))
+                       (app-exp (var-exp 'x) (var-exp 'y))))
+(check-equal? #t (occurs-free-np? 'x '((lambda x x) (x y))))
+(check-equal? '(lambda y (lambda z (x (y z))))
+              (lambda-exp-np 'y
+                          (lambda-exp-np 'z
+                                      (app-exp
+                                       (var-exp 'x)
+                                       (app-exp
+                                        (var-exp 'y)
+                                        (var-exp 'z))))))
+(check-equal? #t (occurs-free-np? 'x '(lambda y (lambda z (x (y z))))))
