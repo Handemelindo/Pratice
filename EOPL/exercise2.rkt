@@ -389,3 +389,74 @@
                                         (var-exp 'y)
                                         (var-exp 'z))))))
 (check-equal? #t (occurs-free-np? 'x '(lambda y (lambda z (x (y z))))))
+
+;;2.17[*]
+;;TODO
+
+;;2.18[*]
+;; extractor
+(define current-element
+  (lambda (lst)
+    (car lst)))
+(check-equal? 6 (current-element '(6 (5 4 3 2 1) (7 8 9))))
+
+(define current-left
+  (lambda (lst)
+    (cadr lst)))
+(check-equal? '(5 4 3 2 1) (current-left '(6 (5 4 3 2 1) (7 8 9))))
+
+(define current-right
+  (lambda (lst)
+    (caddr lst)))
+(check-equal? '(7 8 9) (current-right '(6 (5 4 3 2 1) (7 8 9))))
+
+;; predicates
+(define at-left-end?
+  (lambda (lst)
+    (null? (current-left lst))))
+(check-equal? #f (at-left-end? '(6 (5 4 3 2 1) (7 8 9))))
+(check-equal? #t (at-left-end? '(6 () (7 8 9))))
+(define at-right-end?
+  (lambda (lst)
+    (null? (current-right lst))))
+(check-equal? #f (at-right-end? '(6 (5 4 3 2 1) (7 8 9))))
+(check-equal? #t (at-right-end? '(6 (5 4 3 2 1) ())))
+
+;;constructor
+(define number->sequence
+  (lambda (num)
+    (list num '() '())))
+(check-equal? '(7 () ()) (number->sequence 7))
+
+(define insert-to-left
+  (lambda (lst num)
+    (list
+     (current-element lst)
+     (cons num (current-left lst))
+     (current-right lst))))
+(check-equal? '(6 (13 5 4 3 2 1) (7 8 9)) (insert-to-left '(6 (5 4 3 2 1) (7 8 9)) 13))
+
+(define insert-to-right
+  (lambda (lst num)
+    (list (current-element lst) (current-left lst) (cons num (current-right lst)))))
+(check-equal? '(6 (5 4 3 2 1) (13 7 8 9)) (insert-to-right '(6 (5 4 3 2 1) (7 8 9)) 13))
+
+(define move-to-left
+  (lambda (lst)
+    (if (at-left-end? lst)
+        'left-on-left-end
+        (list
+             (car (current-left lst))
+             (cdr (current-left lst))
+             (cons (current-element lst) (current-right lst))))))
+(check-equal? '(5 (4 3 2 1) (6 7 8 9)) (move-to-left '(6 (5 4 3 2 1) (7 8 9))))
+
+(define move-to-right
+  (lambda (lst)
+    (if (at-right-end? lst)
+        'right-on-right-end
+        (list
+            (car (current-right lst))
+            (cons (current-element lst) (current-left lst))
+            (cdr (current-right lst))))))
+(check-equal? '(7 (6 5 4 3 2 1) (8 9)) (move-to-right '(6 (5 4 3 2 1) (7 8 9))))
