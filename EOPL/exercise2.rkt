@@ -2,242 +2,242 @@
 (require rackunit)
 
 ;;2.1[*]
-;; (define zero (list 0))
-;; (define zero? null?)
-;; (define successor
-;;   (lambda (x)
-;;     (cond
-;;      ((zero? x) (list 1))
-;;      ((< (car x) 15) (cons (+ 1 (car x)) (cdr x)))
-;;      ((not (null? (cdr x))) (cons 0 (successor (cdr x))))
-;;      (else (cons 0 (cons 1 (cdr x)))))))
-;; (define predecessor
-;;   (lambda (x)
-;;     (cond
-;;      ((zero? x) '())
-;;      ((and (null? (cdr x))
-;;            (eqv? 1 (car x)))
-;;       '())
-;;      ((eqv? 0 (car x)) (cons 15 (predecessor (cdr x))))
-;;      (else (cons (- (car x) 1) (cdr x))))))
-;; (define plus
-;;   (lambda (x y)
-;;     (if (or (zero? x) (zero? y))
-;;         y
-;;         (plus (predecessor x) (successor y)))))
-;; (define multi
-;;   (lambda (x y)
-;;     (if (or (zero? x) (zero? y))
-;;         zero
-;;         (plus x (multi x (predecessor y))))))
-;; (define factorial
-;;   (lambda (x)
-;;     (if (zero? x)
-;;         (successor zero)
-;;         (multi (factorial (predecessor x)) x))))
+(define zero-1 (list 0))
+(define zero-1? null?)
+(define successor-1
+  (lambda (x)
+    (cond
+     ((zero-1? x) (list 1))
+     ((< (car x) 15) (cons (+ 1 (car x)) (cdr x)))
+     ((not (null? (cdr x))) (cons 0 (successor-1 (cdr x))))
+     (else (cons 0 (cons 1 (cdr x)))))))
+(define predecessor-1
+  (lambda (x)
+    (cond
+     ((zero-1? x) '())
+     ((and (null? (cdr x))
+           (eqv? 1 (car x)))
+      '())
+     ((eqv? 0 (car x)) (cons 15 (predecessor-1 (cdr x))))
+     (else (cons (- (car x) 1) (cdr x))))))
+(define plus-1
+  (lambda (x y)
+    (if (or (zero-1? x) (zero-1? y))
+        y
+        (plus-1 (predecessor-1 x) (successor-1 y)))))
+(define multi-1
+  (lambda (x y)
+    (if (or (zero-1? x) (zero-1? y))
+        zero-1
+        (plus-1 x (multi-1 x (predecessor-1 y))))))
+(define factorial-1
+  (lambda (x)
+    (if (zero-1? x)
+        (successor-1 zero-1)
+        (multi-1 (factorial-1 (predecessor-1 x)) x))))
 
 ;;2.3[***]
-;; (define zero '(diff (one) (one)))
-;; (define number
-;;   (lambda (num)
-;;     (cond
-;;      ((symbol=? 'one (car num)) 1)
-;;      ((symbol=? 'diff (car num)) (- (number (cadr num)) (number (caddr num))))
-;;      (else #f))))
-;; (define zero?
-;;   (lambda (num)
-;;     (eqv? (number num) 0)))
-;; (define minus
-;;   (lambda (x y)
-;;     (list 'diff x y)))
-;; (define successor
-;;   (lambda (num)
-;;     (if (eqv? (car num) 'one)
-;;         '(diff (one) (diff (diff (one) (one)) (one)))
-;;         (minus num (minus zero '(one))))))
-;; (define predecessor
-;;   (lambda (num)
-;;     (list 'diff num '(one))))
-;; (define plus
-;;   (lambda (x y)
-;;     (minus x (minus zero y))))
+(define zero-2 '(diff (one) (one)))
+(define number-2
+  (lambda (num)
+    (cond
+     ((symbol=? 'one (car num)) 1)
+     ((symbol=? 'diff (car num)) (- (number-2 (cadr num)) (number-2 (caddr num))))
+     (else #f))))
+(define zero-2?
+  (lambda (num)
+    (eqv? (number-2 num) 0)))
+(define minus-2
+  (lambda (x y)
+    (list 'diff x y)))
+(define successor-2
+  (lambda (num)
+    (if (eqv? (car num) 'one)
+        '(diff (one) (diff (diff (one) (one)) (one)))
+        (minus-2 num (minus-2 zero-2 '(one))))))
+(define predecessor-2
+  (lambda (num)
+    (list 'diff num '(one))))
+(define plus
+  (lambda (x y)
+    (minus-2 x (minus-2 zero-2 y))))
 
 ;;implementation of env list
-;; ;; empty-env : () -> Env
-;; (define empty-env
-;;   (lambda () (list 'empty-env)))
+;; empty-env : () -> Env
+(define empty-env-0
+  (lambda () (list 'empty-env)))
 
 ;; ;; extend-env : Var x Val x Env -> Env
-;; (define extend-env
-;;   (lambda (var val env)
-;;     (list 'extend-env var val env)))
+(define extend-env-0
+  (lambda (var val env)
+    (list 'extend-env var val env)))
 
 ;; ;; apply-env Var x Env -> Val
-;; (define apply-env
-;;   (lambda (var env)
-;;     (cond
-;;      ((eqv? (car env) 'empty-env) 'empty-env)
-;;      ((eqv? (car env) 'extend-env)
-;;       (let
-;;           ((saved-var (cadr env))
-;;            (saved-val (caddr env))
-;;            (next-env (cadddr env)))
-;;         (if (eqv? var saved-var)
-;;             saved-val
-;;             (apply-env var next-env))))
-;;      (else 'no-such-var))))
+(define apply-env-0
+  (lambda (var env)
+    (cond
+     ((eqv? (car env) 'empty-env) 'empty-env)
+     ((eqv? (car env) 'extend-env)
+      (let
+          ((saved-var (cadr env))
+           (saved-val (caddr env))
+           (next-env (cadddr env)))
+        (if (eqv? var saved-var)
+            saved-val
+            (apply-env-0 var next-env))))
+     (else 'no-such-var))))
 
 ;; ;; 2.5[*]
-;; (define empty-env
-;;   (lambda () '()))
-;; (define extend-env
-;;   (lambda (var val env)
-;;     (list (list var val) env)))
-;; (define apply-env
-;;   (lambda (var env)
-;;     (if (null? env)
-;;         'no-such-var
-;;         (if (eqv? var (car (car env)))
-;;             (cadr (car env))
-;;             (apply-env var (cadr env))))))
+(define empty-env-chain
+  (lambda () '()))
+(define extend-env-chain
+  (lambda (var val env)
+    (list (list var val) env)))
+(define apply-env-chain
+  (lambda (var env)
+    (if (null? env)
+        'no-such-var
+        (if (eqv? var (car (car env)))
+            (cadr (car env))
+            (apply-env-chain var (cadr env))))))
 ;; ;; 2.8[*]
-;; (define empty-env? null?)
+(define empty-env-chain? null?)
 
 ;; ;; 2.9[*]
-;; (define has-binding?
-;;   (lambda (var env)
-;;     (cond
-;;      ((empty-env? env) #f)
-;;      ((eqv? var (car (car env))) #t)
-;;      (else (has-binding? (cadr env))))))
+(define has-binding-chain?
+  (lambda (var env)
+    (cond
+     ((empty-env-chain? env) #f)
+     ((eqv? var (car (car env))) #t)
+     (else (has-binding-chain? (cadr env))))))
 
 ;; ;; 2.10[*]
-;; (define extend-env*
-;;   (lambda (vars vals env)
-;;     (foldl extend-env env vars vals)))
+(define extend-env-chain*
+  (lambda (vars vals env)
+    (foldl extend-env-chain env vars vals)))
 
 ;;2.6[*]
-;; (define empty-env
-;;   (lambda () '()))
-;; (define extend-env
-;;   (lambda (var val env)
-;;     (cons var (cons val env))))
-;; (define apply-env
-;;   (lambda (var env)
-;;     (if (null? env)
-;;         'no-such-var
-;;         (if (eqv? var (car env))
-;;             (cadr env)
-;;             (apply-env var (cddr env))))))
+(define empty-env-1
+  (lambda () '()))
+(define extend-env-1
+  (lambda (var val env)
+    (cons var (cons val env))))
+(define apply-env-1
+  (lambda (var env)
+    (if (null? env)
+        'no-such-var
+        (if (eqv? var (car env))
+            (cadr env)
+            (apply-env-1 var (cddr env))))))
 
-;; (define empty-env
-;;   (lambda () (list '() '())))
-;; (define extend-env
-;;   (lambda (var val env)
-;;     (list (cons var (car env)) (cons val (cadr env)))))
-;; (define apply-env
-;;   (lambda (var env)
-;;     (cond
-;;      ((and
-;;        (null? (car env))
-;;        (null? (cadr env)))
-;;       'no-such-var)
-;;      ((eqv? var (car (car env))) (car (cadr env)))
-;;      (else (apply-env var (list (cdr (car env)) (cdr (cadr env))))))))
+(define empty-env-2
+  (lambda () (list '() '())))
+(define extend-env-2
+  (lambda (var val env)
+    (list (cons var (car env)) (cons val (cadr env)))))
+(define apply-env-2
+  (lambda (var env)
+    (cond
+     ((and
+       (null? (car env))
+       (null? (cadr env)))
+      'no-such-var)
+     ((eqv? var (car (car env))) (car (cadr env)))
+     (else (apply-env-2 var (list (cdr (car env)) (cdr (cadr env))))))))
 
 ;;2.7[*]
 ;;TODO
 
 ;;2.11[**]
-;; (define empty-env
-;;   (lambda () '()))
-;; (define empty-env? null?)
-;; (define extend-env
-;;   (lambda (var val env)
-;;     (list (list (list var) (list val)) env)))
-;; (define extend-env*
-;;   (lambda (vars vals env)
-;;     (list (list vars vals) env)))
-;; (define apply-env
-;;   (lambda (var env)
-;;     (if (empty-env? env)
-;;         'no-such-var
-;;         ((let*
-;;              ((vars (car (car env)))
-;;               (vals (cadr (car env)))
-;;               (maybe-the-pair (find-var var vars vals)))
-;;            (if (eqv? (car maybe-the-pair) var)
-;;                (cadr maybe-the-pair)
-;;                (apply-env var (cadr env))))))))
-;; (define find-var
-;;   (lambda (var vars vals)
-;;     (if (null? vars)
-;;         'not-in-this
-;;         (if (eqv? var (car vars))
-;;             (list var (car vals))
-;;             (find-var (cdr vars) (cdr vals))))))
+(define empty-env-ribcage
+  (lambda () '()))
+(define empty-env-ribcage? null?)
+(define extend-env-ribcage
+  (lambda (var val env)
+    (list (list (list var) (list val)) env)))
+(define extend-env-ribcage*
+  (lambda (vars vals env)
+    (list (list vars vals) env)))
+(define apply-env-ribcage
+  (lambda (var env)
+    (if (empty-env-ribcage? env)
+        'no-such-var
+        ((let*
+             ((vars (car (car env)))
+              (vals (cadr (car env)))
+              (maybe-the-pair (find-var var vars vals)))
+           (if (eqv? (car maybe-the-pair) var)
+               (cadr maybe-the-pair)
+               (apply-env-ribcage var (cadr env))))))))
+(define find-var-ribcage
+  (lambda (var vars vals)
+    (if (null? vars)
+        'not-in-this
+        (if (eqv? var (car vars))
+            (list var (car vals))
+            (find-var-ribcage (cdr vars) (cdr vals))))))
 
 ;;2.4[**]
-;; (define empty-stack
-;;   (lambda () '()))
-;; (define pop
-;;   (lambda (stack)
-;;     (if (empty-stack? stack)
-;;         'push-on-empty-stack
-;;         (list
-;;          (car stack)
-;;          (cdr stack)))))
-;; (define push
-;;   (lambda (x stack)
-;;     (cons x stack)))
-;; (define top
-;;   (lambda (stack)
-;;     (if (empty-stack? stack)
-;;         'top-on-empty-stack
-;;         (car stack))))
-;; (define empty-stack?
-;;   (lambda (stack)
-;;     (null? stack)))
+(define empty-stack-list
+  (lambda () '()))
+(define pop-list
+  (lambda (stack)
+    (if (empty-stack? stack)
+        'push-on-empty-stack
+        (list
+         (car stack)
+         (cdr stack)))))
+(define push-list
+  (lambda (x stack)
+    (cons x stack)))
+(define top-list
+  (lambda (stack)
+    (if (empty-stack-list? stack)
+        'top-on-empty-stack
+        (car stack))))
+(define empty-stack-list?
+  (lambda (stack)
+    (null? stack)))
 
 ;;2.12[**]
-(define empty-stack
+(define empty-stack-lambda
   (lambda ()
     (lambda () 'empty-stack)))
-(define pop
+(define pop-lambda
   (lambda (stack) (stack)))
-(define push
+(define push-lambda
   (lambda (x stack)
     (lambda ()
       (list x stack))))
-(define top
+(define top-lambda
   (lambda (stack)
-    (car (pop stack))))
+    (car (pop-lambda stack))))
 
 ;;2.13[**]
-(define empty-env
+(define empty-env-lambda
   (lambda ()
     (list (lambda (var) 'empty-env)
           (lambda () #t))))
-(define extend-env
+(define extend-env-lambda
   (lambda (saved-var saved-val saved-env)
     (list
      (lambda (search-var)
        (if (eqv? search-var saved-var)
            saved-val
            ;; use apply-env so that we can throw no-such-var error
-           (apply-env search-var saved-env)))
+           (apply-env-lambda search-var saved-env)))
        (lambda () #f))))
-(define apply-env
+(define apply-env-lambda
   (lambda (var env)
-    (if (empty-env? env)
+    (if (empty-env-lambda? env)
         'no-such-var
         ((car env) var))))
-(define empty-env?
+(define empty-env-lambda?
   (lambda (env)
     ((cadr env))))
 
 ;;2.14[**]
-(define has-binding?
+(define has-binding-lambda?
   (lambda (var env)
     (not (eqv? 'no-such-var (apply-env var env)))))
 
@@ -460,3 +460,65 @@
             (cons (current-element lst) (current-left lst))
             (cdr (current-right lst))))))
 (check-equal? '(7 (6 5 4 3 2 1) (8 9)) (move-to-right '(6 (5 4 3 2 1) (7 8 9))))
+
+;;[2.19*]
+;; extractor
+(define bintree-current-element
+  (lambda (bt) (car bt)))
+
+(define bintree-move-to-left
+  (lambda (bt)
+    (if (bintree-at-leaf? bt)
+        'left-on-leaf
+        (cadr bt))))
+
+(define bintree-move-to-right
+  (lambda (bt)
+    (if (bintree-at-leaf? bt)
+        'right-on-leaf
+        (caddr bt))))
+
+;; predicate
+(define bintree-at-leaf?
+  (lambda (bt)
+    (null? bt)))
+
+;; constructor
+(define empty-bintree
+  (lambda () '()))
+
+(define number->bintree
+  (lambda (x) (list x (empty-bintree) (empty-bintree))))
+
+(define bintree-insert-to-left
+  (lambda (x bt)
+    (list
+     (bintree-current-element bt)
+     (list x (bintree-move-to-left bt) (empty-bintree))
+     (bintree-move-to-right bt))))
+
+(define bintree-insert-to-right
+  (lambda (x bt)
+    (list
+     (bintree-current-element bt)
+     (bintree-move-to-left bt)
+     (list x (empty-bintree) (bintree-move-to-right bt)))))
+
+(define t1 (bintree-insert-to-right 14
+              (bintree-insert-to-left 12
+                 (number->bintree 13))))
+
+(check-equal? '(13 () ()) (number->bintree 13))
+(check-equal? '(13
+                (12 () ())
+                (14 () ())) t1)
+(check-equal? '(12 () ()) (bintree-move-to-left t1))
+(check-equal? 14 (bintree-current-element (bintree-move-to-right t1)))
+(check-equal? (bintree-at-leaf? (bintree-move-to-right (bintree-move-to-left t1))) #t)
+(check-equal? (bintree-at-leaf? (bintree-move-to-right t1)) #f)
+(check-equal? '(13
+                (15
+                 (12 () ())
+                 ())
+                (14 () ()))
+              (bintree-insert-to-left 15 t1))
