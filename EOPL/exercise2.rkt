@@ -522,3 +522,104 @@
                  ())
                 (14 () ()))
               (bintree-insert-to-left 15 t1))
+
+;;2.20[***]
+;; ((parent) cur (left) (right))
+;; extractor
+(define z-left-son
+  (lambda (bt)
+    (if (z-at-leaf? bt)
+        'left-on-leaf
+        (cons
+         (cons (list (z-current-element bt) 'p (cadddr bt))
+               (car bt))
+        (caddr bt)))))
+
+(define z-right-son
+  (lambda (bt)
+    (if (z-at-leaf? bt)
+        'right-on-leaf
+        (cons
+         (cons (list (z-current-element bt) (caddr bt) 'p)
+               (car bt))
+        (cadddr bt)))))
+
+(define z-parent
+  (lambda (bt)
+    (if (z-at-root? bt)
+        'parent-on-root
+        (let ((parent (car (car bt))))
+          (if (eqv? 'p (cadr parent))
+              (list
+               (cdr (car bt))
+               (car parent)
+               (list (cadr bt) (caddr bt) (cadddr bt))
+               (caddr parent))
+              (list
+               (cdr (car bt))
+               (car parent)
+               (cadr parent)
+               (list (cadr bt) (caddr bt) (cadddr bt))))))))
+
+(define z-current-element
+  (lambda (bt) (cadr bt)))
+
+;; predicate
+(define z-at-leaf?
+  (lambda (bt) (= 1 (length bt))))
+
+(define z-at-root?
+  (lambda (bt)
+    (null? (car bt))))
+
+;; constructor
+(define z-number->bintree
+  (lambda (x)
+    (list '() x '() '())))
+
+(define z-insert-to-left
+  (lambda (x bt)
+    (list
+     (car bt)
+     (z-current-element bt)
+     (list x (caddr bt) '())
+     (cadddr bt))))
+
+(define z-insert-to-right
+  (lambda (x bt)
+    (list
+     (car bt)
+     (z-current-element bt)
+     (caddr bt)
+     (list x '() (cadddr bt)))))
+
+(define t2 (z-insert-to-right 14
+              (z-insert-to-left 12
+                 (z-number->bintree 13))))
+
+(check-equal? (z-number->bintree 13) '(() 13 () ()))
+(check-equal? t2
+              '(()
+                13
+                (12 () ())
+                (14 () ())))
+(check-equal? '(((13 p (14 () ()))) 12 () ()) (z-left-son t2))
+(check-equal? 14 (z-current-element (z-right-son t2)))
+(check-equal? (z-at-leaf? (z-right-son (z-left-son t2))) #t)
+(check-equal? (z-at-leaf? (z-right-son t2)) #f)
+(check-equal? (z-insert-to-left 15 t2)
+              '(()
+                13
+                (15
+                 (12 () ())
+                 ())
+                (14 () ())))
+(define t2-left (z-left-son (z-insert-to-left 15 t2)))
+(check-equal? t2-left
+              '(((13 p (14 () ())))
+                15
+                (12 () ())
+                ()))
+(check-equal? (z-at-root? t2) #t)
+(check-equal? (z-at-root? t2-left) #f)
+(check-equal? (z-parent t2-left) (z-insert-to-left 15 t2))
