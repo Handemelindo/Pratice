@@ -169,3 +169,79 @@
   (check-equal? (car (max-interior tree-1)) 'foo)
   (check-equal? (car (max-interior tree-2)) 'foo)
   (check-equal? (car (max-interior tree-3)) 'baz))
+
+;;2.26[**]
+(define-datatype blue-subtree blue-subtree?
+  (empty-blue-subtree)
+  (nonempty-blue-subtree
+   (head red-blue-tree?)
+   (tail blue-subtree?)))
+(define-datatype red-blue-tree red-blue-tree?
+  (red-node
+   (left red-blue-tree?)
+   (right red-blue-tree?))
+  (blue-node
+   (trees blue-subtree?))
+  (rbt-leaf-node
+   (num integer?)))
+
+(define mark-blue-subtree
+  (lambda (bst acc)
+    (cases blue-subtree bst
+           (empty-blue-subtree () '())
+           (nonempty-blue-subtree (head tail)
+                                  (cons
+                                   (mark-rbt-depth head acc)
+                                   (mark-blue-subtree tail acc))))))
+(define mark-rbt-depth
+  (lambda (rbt acc)
+    (cases red-blue-tree rbt
+           (red-node (left right)
+                     (list 'red (mark-rbt-depth left (+ acc 1)) (mark-rbt-depth right (+ acc 1))))
+           (blue-node (trees) (cons 'blue (mark-blue-subtree trees acc)))
+           (rbt-leaf-node (num) acc))))
+
+(letrec
+    ((t1 (red-node (rbt-leaf-node 1) (rbt-leaf-node 2)))
+     (r1 '(red 1 1))
+     (t2 (blue-node (nonempty-blue-subtree (rbt-leaf-node 1) (empty-blue-subtree))))
+     (r2 '(blue 0))
+     (t3 (blue-node (empty-blue-subtree)))
+     (r3 '(blue))
+     (t4 (red-node t2 t3))
+     (r4 '(red
+           (blue 1)
+           (blue)))
+     (t5 (blue-node (nonempty-blue-subtree t4 (nonempty-blue-subtree t1 (empty-blue-subtree)))))
+     (r5 '(blue
+           (red
+            (blue 1)
+            (blue))
+           (red 1 1)))
+     (t6 (red-node t5 t4))
+     (r6 '(red
+           (blue
+            (red
+             (blue 2)
+             (blue))
+            (red 2 2))
+           (red
+            (blue 2)
+            (blue))))
+     (t7 (blue-node (nonempty-blue-subtree t4
+                     (nonempty-blue-subtree t2
+                      (nonempty-blue-subtree (red-node t2 t1) (empty-blue-subtree))))))
+     (r7 '(blue
+           (red
+            (blue 1)
+            (blue))
+           (blue 0)
+           (red
+            (blue 1)
+            (red 2 2)))))
+  (check-equal? (mark-rbt-depth t1 0) r1)
+  (check-equal? (mark-rbt-depth t2 0) r2)
+  (check-equal? (mark-rbt-depth t3 0) r3)
+  (check-equal? (mark-rbt-depth t4 0) r4)
+  (check-equal? (mark-rbt-depth t5 0) r5)
+  (check-equal? (mark-rbt-depth t6 0) r6))
