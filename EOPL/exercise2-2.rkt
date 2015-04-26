@@ -245,3 +245,26 @@
   (check-equal? (mark-rbt-depth t4 0) r4)
   (check-equal? (mark-rbt-depth t5 0) r5)
   (check-equal? (mark-rbt-depth t6 0) r6))
+
+;;2.28[*]
+(define lc-exp-unparse
+  (lambda (exp)
+    (cases lc-exp exp
+           (var-exp (var) (symbol->string var))
+           (lambda-exp (bound-var body) (string-append
+                                         "lambda (" (symbol->string bound-var) ") "
+                                         (lc-exp-unparse body)))
+           (app-exp (rator rand) (string-append
+                                  "("
+                                  (lc-exp-unparse rator)
+                                  " "
+                                  (lc-exp-unparse rand)
+                                  ")")))))
+
+(letrec
+    ((iden (var-exp 'x))
+     (expr (lambda-exp 'x iden))
+     (app (app-exp iden expr)))
+  (check-equal? (lc-exp-unparse iden) "x")
+  (check-equal? (lc-exp-unparse expr) "lambda (x) x")
+  (check-equal? (lc-exp-unparse app) "(x lambda (x) x)"))
