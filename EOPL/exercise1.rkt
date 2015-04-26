@@ -297,7 +297,33 @@
 
 ;;TODO
 ;;1.33[**]
-;;mark-leaves-with-red-depth:
+(define mark-leaves-with-red-depth-acc
+  (lambda (bt acc)
+      (if (eqv? (car bt) 'leaf)
+          acc
+          (letrec
+              ((key (cadr bt))
+              (left (caddr bt))
+              (right (cadddr bt))
+              (num-red (if (eqv? key 'red) (+ acc 1) acc)))
+            (list
+              key
+              (mark-leaves-with-red-depth-acc left num-red)
+              (mark-leaves-with-red-depth-acc right num-red))))))
+(check-equal?
+ (mark-leaves-with-red-depth-acc '(interior-node red
+                                   (interior-node bar
+                                                  (leaf 26)
+                                                  (leaf 12))
+                                   (interior-node red
+                                                  (leaf 11)
+                                                  (interior-node quux
+                                                                 (leaf 117)
+                                                                 (leaf 14))))
+                                 0)
+ '(red
+  (bar 1 1)
+  (red 2 (quux 2 2))))
 
 ;;1.34[***]
 ;;path: Tree(Int) -> Listof(left | right)
