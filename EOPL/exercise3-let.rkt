@@ -36,9 +36,15 @@
     (expression
      ("/" "(" expression "," expression ")") div-exp)
     (expression
-     ("zero?(" expression ")") zero?-exp)
+     ("zero?" "(" expression ")") zero?-exp)
     (expression
-     ("minus(" expression ")") minus-exp)
+     ("equal?" "(" expression "," expression ")") equal?-exp)
+    (expression
+     ("greater?" "(" expression "," expression ")") greater?-exp)
+    (expression
+     ("less?" "(" expression "," expression ")") less?-exp)
+    (expression
+     ("minus" "(" expression ")") minus-exp)
     (expression
      ("if" expression "then" expression "else" expression) if-exp)
     (expression
@@ -80,13 +86,16 @@
 (define value-of->bool
   (lambda (exp env)
     (expval->bool (value-of exp env))))
-(define lift-num
-  (lambda (f env . exprs)
-    (num-val (apply
+(define lift
+  (lambda (lift-f)
+    (lambda (f env . exprs)
+    (lift-f (apply
               f
               (map
                (lambda (expr) (value-of->num expr env))
-               exprs)))))
+               exprs))))))
+(define lift-num (lift num-val))
+(define lift-bool (lift bool-val))
 (define value-of
   (lambda (exp env)
     (cases expression exp
@@ -100,14 +109,16 @@
                      (lift-num / env expr1 expr2))
            (mul-exp (expr1 expr2)
                      (lift-num * env expr1 expr2))
+           (equal?-exp (expr1 expr2)
+                      (lift-bool = env expr1 expr2))
+           (greater?-exp (expr1 expr2)
+                      (lift-bool > env expr1 expr2))
+           (less?-exp (expr1 expr2)
+                      (lift-bool < env expr1 expr2))
            (zero?-exp (expr)
-                      (let ((num (value-of->num expr env)))
-                        (if (zero? num)
-                            (bool-val #t)
-                            (bool-val #f))))
+                      (lift-bool zero? env expr))
            (minus-exp (expr)
-                      (let ((num (value-of->num expr env)))
-                        (num-val (- num))))
+                      (lift-num - env expr))
            (if-exp (predicate if-exp false-exp)
                    (let ((pred (value-of->bool predicate env)))
                      (if pred
@@ -144,6 +155,45 @@
 (check-equal? (expval->num
                (run "if zero?(-(x, 11)) then -(y, 2) else -(y, 4)"
                     (extend-env 'x (num-val 11)
+                     (extend-env 'y (num-val 22)
+                      (empty-env)))))
+              20)
+
+(check-equal? (expval->num
+               (run "if greater?(x, 11) then -(y, 2) else -(y, 4)"
+                    (extend-env 'x (num-val 33)
+                     (extend-env 'y (num-val 22)
+                      (empty-env)))))
+              20)
+(check-equal? (expval->num
+               (run "if greater?(x, 11) then -(y, 2) else -(y, 4)"
+                    (extend-env 'x (num-val 10)
+                     (extend-env 'y (num-val 22)
+                      (empty-env)))))
+              18)
+
+(check-equal? (expval->num
+               (run "if equal?(x, 11) then -(y, 2) else -(y, 4)"
+                    (extend-env 'x (num-val 11)
+                     (extend-env 'y (num-val 22)
+                      (empty-env)))))
+              20)
+(check-equal? (expval->num
+               (run "if equal?(x, 11) then -(y, 2) else -(y, 4)"
+                    (extend-env 'x (num-val 10)
+                     (extend-env 'y (num-val 22)
+                      (empty-env)))))
+              18)
+
+(check-equal? (expval->num
+               (run "if less?(x, 11) then -(y, 2) else -(y, 4)"
+                    (extend-env 'x (num-val 11)
+                     (extend-env 'y (num-val 22)
+                      (empty-env)))))
+              18)
+(check-equal? (expval->num
+               (run "if less?(x, 11) then -(y, 2) else -(y, 4)"
+                    (extend-env 'x (num-val 10)
                      (extend-env 'y (num-val 22)
                       (empty-env)))))
               20)
