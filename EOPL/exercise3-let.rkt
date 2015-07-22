@@ -46,6 +46,16 @@
     (expression
      ("minus" "(" expression ")") minus-exp)
     (expression
+     ("emptylist") emptylist-exp)
+    (expression
+     ("cons" "(" expression "," expression ")") cons-exp)
+    (expression
+     ("car" "(" expression ")") car-exp)
+    (expression
+     ("cdr" "(" expression ")") cdr-exp)
+    (expression
+     ("null?" "(" expression ")") null?-exp)
+    (expression
      ("if" expression "then" expression "else" expression) if-exp)
     (expression
      (identifier) var-exp)
@@ -58,8 +68,24 @@
   (num-val
    (num number?))
   (bool-val
-   (bool boolean?)))
+   (bool boolean?))
+  (list-val
+   (list list?)))
+(define val->expval
+  (lambda (val)
+    (cond
+     ((number? val) (num-val val))
+     ((boolean? val) (bool-val val))
+     ((list? val) (list-val val))
+     (else (eopl:error val)))))
 
+(define expval->val
+  (lambda (val)
+    (cases expval val
+           (num-val (num) num)
+           (bool-val (bool) bool)
+           (list-val (list) list)
+           (else (eopl:error val)))))
 (define expval->num
   (lambda (val)
     (cases expval val
@@ -72,6 +98,12 @@
            (bool-val (bool) bool)
            (else (eopl:error "bool" val)))))
 
+(define expval->list
+  (lambda (val)
+    (cases expval val
+           (list-val (list) list)
+           (else (eopl:error "list" val)))))
+
 (define run
   (lambda (string env)
     (value-of-program (scan&parse string) env)))
@@ -80,45 +112,61 @@
   (lambda (pgm env)
     (value-of pgm env)))
 
+(define value-of->val
+  (lambda (exp env)
+    (expval->val (value-of exp env))))
 (define value-of->num
   (lambda (exp env)
     (expval->num (value-of exp env))))
 (define value-of->bool
   (lambda (exp env)
     (expval->bool (value-of exp env))))
+(define value-of->list
+  (lambda (exp env)
+    (expval->list (value-of exp env))))
 (define lift
-  (lambda (lift-f)
-    (lambda (f env . exprs)
+  (lambda (lift-f extract-f)
+    (lambda (f env exprs)
     (lift-f (apply
               f
               (map
-               (lambda (expr) (value-of->num expr env))
+               (lambda (expr) (extract-f (value-of expr env)))
                exprs))))))
-(define lift-num (lift num-val))
-(define lift-bool (lift bool-val))
 (define value-of
   (lambda (exp env)
     (cases expression exp
            (const-exp (num) (num-val num))
            (var-exp (var) (apply-env var env))
            (diff-exp (expr1 expr2)
-                     (lift-num - env expr1 expr2))
+                     ((lift num-val expval->num) - env (list expr1 expr2)))
            (plus-exp (expr1 expr2)
-                     (lift-num + env expr1 expr2))
+                     ((lift num-val expval->num) + env (list expr1 expr2)))
            (div-exp (expr1 expr2)
-                     (lift-num / env expr1 expr2))
+                    ((lift num-val expval->num) / env (list expr1 expr2)))
            (mul-exp (expr1 expr2)
-                     (lift-num * env expr1 expr2))
+                    ((lift num-val expval->num) * env (list expr1 expr2)))
            (equal?-exp (expr1 expr2)
-                      (lift-bool = env expr1 expr2))
+                       ((lift bool-val expval->num) = env (list expr1 expr2)))
            (greater?-exp (expr1 expr2)
-                      (lift-bool > env expr1 expr2))
+                         ((lift bool-val expval->num) > env (list expr1 expr2)))
            (less?-exp (expr1 expr2)
-                      (lift-bool < env expr1 expr2))
+                      ((lift bool-val expval->num) < env (list expr1 expr2)))
            (zero?-exp (expr)
-                      (lift-bool zero? env expr))
+                      ((lift bool-val expval->num) zero? env (list expr)))
            (minus-exp (expr)
-                      (lift-num - env expr))
+                      ((lift num-val expval->num) - env (list expr)))
+           (emptylist-exp ()
+                          (list-val '()))
+           (cons-exp (expr1 expr2)
+                     (let ((head (value-of->val expr1 env))
+                           (tail (value-of->val expr2 env)))
+                       (list-val (cons head tail))))
+           (car-exp (expr)
+                    (val->expval (car (value-of->list expr env))))
+           (cdr-exp (expr)
+                    (val->expval (cdr (value-of->list expr env))))
+           (null?-exp (expr)
+                      (bool-val (null? (value-of->list expr env))))
            (if-exp (predicate if-exp false-exp)
                    (let ((pred (value-of->bool predicate env)))
                      (if pred
@@ -228,11 +276,16 @@
                            in -(-(x, 8), y)"
                     (empty-env)))
               -9)
+(check-equal? (expval->list
+               (run "let x = 4
+                     in cons(x, cons(cons(-(x, 1), emptylist), emptylist))"
+                    (empty-env)))
+              '(4 (3)))
 
 ;; 3.6[*] minus(n) = -n
 ;; 3.7[*] + * /
 ;; 3.8[*] numeric equal?(x, y) iff (= x y); greater?(x, y); less?(x, y)
-;; 3.9[**] cons, cars, cdr, null? emptylist, list should be full recursive
+;; 3.9[**] cons, car, cdr, null? emptylist, list should be full recursive
 ;; let x = 4 in cons(x, cons(cons(-(x, 1), emptylist), emptylist)) should be (4 (3))
 ;; 3.10[**] list operation
 ;; let x = 4 in list(x, -(x, 1), -(x, 3)) should be (4 3 1)
