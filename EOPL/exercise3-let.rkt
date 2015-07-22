@@ -30,7 +30,9 @@
     (expression
      ("-" "(" expression "," expression ")") diff-exp)
     (expression
-     ("zero?" "(" expression ")") zero?-exp)
+     ("zero?(" expression ")") zero?-exp)
+    (expression
+     ("minus(" expression ")") minus-exp)
     (expression
      ("if" expression "then" expression "else" expression) if-exp)
     (expression
@@ -83,6 +85,10 @@
                           (if (zero? num)
                               (bool-val #t)
                               (bool-val #f)))))
+           (minus-exp (expr)
+                      (let ((val (value-of expr env)))
+                        (let ((num (expval->num val)))
+                          (num-val (- num)))))
            (if-exp (predicate if-exp false-exp)
                    (let ((val (value-of predicate env)))
                      (let ((pred (expval->bool val)))
@@ -109,9 +115,60 @@
               18)
 
 (check-equal? (expval->num
+               (run "if zero?(-(x, 11)) then -(y, 2) else -(y, 4)"
+                    (extend-env 'x (num-val 11)
+                     (extend-env 'y (num-val 22)
+                      (empty-env)))))
+              20)
+
+(check-equal? (expval->num
                (run "let x = 7
                      in let y = 2
                         in let y = let x = -(x, 1) in -(x, y)
                            in -(-(x, 8), y)"
                     (empty-env)))
               -5)
+
+(check-equal? (expval->num
+               (run "-(-(minus(x), 3), -(v, i))"
+                    (extend-env 'i (num-val 1)
+                     (extend-env 'v (num-val 5)
+                      (extend-env 'x (num-val 10)
+                                  (empty-env))))))
+              -17)
+
+(check-equal? (expval->num
+               (run "if zero?(-(x, 11)) then -(y, minus(2)) else -(y, 4)"
+                    (extend-env 'x (num-val 11)
+                     (extend-env 'y (num-val 22)
+                      (empty-env)))))
+              24)
+
+(check-equal? (expval->num
+               (run "let x = 7
+                     in let y = minus(2)
+                        in let y = let x = -(x, 1) in -(x, y)
+                           in -(-(x, 8), y)"
+                    (empty-env)))
+              -9)
+
+;; 3.6[*] minus(n) = -n
+;; 3.7[*] + * /
+;; 3.8[*] numeric equal?(x, y) iff (= x y); greater?(x, y); less?(x, y)
+;; 3.9[**] cons, cars, cdr, null? emptylist, list should be full recursive
+;; let x = 4 in cons(x, cons(cons(-(x, 1), emptylist), emptylist)) should be (4 (3))
+;; 3.10[**] list operation
+;; let x = 4 in list(x, -(x, 1), -(x, 3)) should be (4 3 1)
+;; 3.11[*] rearrange the code
+;; 3.12[*] expression ::= cond {expression ==> expression}* end shoud be lazy
+;; 3.13[*] change language that only use numerics, 0 as false, and 1 as true
+;; 3.14[**] expression if Bool-exp then Expression else Expression, value-of-bool-exp, obverse what changes accordingly of 3.8
+;; 3.15[*] print, and return 1, why it cannot be expressed in specificaton? side effect!!
+;; 3.16[**] expression ::= let {identifier = expression}* in expression
+;; let x = 30 in let x = 1(x, 1) y = -(x, 2) in -(x, y) should be 1
+;; 3.17[**] self indicated let*
+;; let x = 30 in let* x = -(x, 1) y = -(x, 2) in -(x, y)
+;; 3.18[**] expression ::= unpack {identifier}* = expression in expression,
+;; unpack x y z = lst bind x, y, z repectively if lst is list and of size 3, report error otherwise
+;; let u = 7 in unpack x y = cons(u, cons(3, emptylist)) in -(x, y) should be 4
+;; let u = 7 in unpack x y = list(u, 3) in -(x, y)
