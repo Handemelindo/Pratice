@@ -56,6 +56,8 @@
     (expression
      ("null?" "(" expression ")") null?-exp)
     (expression
+     ("list" "(" (separated-list expression ",") ")") list-exp)
+    (expression
      ("if" expression "then" expression "else" expression) if-exp)
     (expression
      (identifier) var-exp)
@@ -167,6 +169,8 @@
                     (val->expval (cdr (value-of->list expr env))))
            (null?-exp (expr)
                       (bool-val (null? (value-of->list expr env))))
+           (list-exp (exprs)
+                     (list-val (map (lambda (expr) (value-of->val expr env)) exprs)))
            (if-exp (predicate if-exp false-exp)
                    (let ((pred (value-of->bool predicate env)))
                      (if pred
@@ -281,14 +285,11 @@
                      in cons(x, cons(cons(-(x, 1), emptylist), emptylist))"
                     (empty-env)))
               '(4 (3)))
+(check-equal? (expval->list
+               (run "let x = 4 in list(x, -(x, 1), -(x, 3))"
+                    (empty-env)))
+              '(4 3 1))
 
-;; 3.6[*] minus(n) = -n
-;; 3.7[*] + * /
-;; 3.8[*] numeric equal?(x, y) iff (= x y); greater?(x, y); less?(x, y)
-;; 3.9[**] cons, car, cdr, null? emptylist, list should be full recursive
-;; let x = 4 in cons(x, cons(cons(-(x, 1), emptylist), emptylist)) should be (4 (3))
-;; 3.10[**] list operation
-;; let x = 4 in list(x, -(x, 1), -(x, 3)) should be (4 3 1)
 ;; 3.11[*] rearrange the code
 ;; 3.12[*] expression ::= cond {expression ==> expression}* end shoud be lazy
 ;; 3.13[*] change language that only use numerics, 0 as false, and 1 as true
