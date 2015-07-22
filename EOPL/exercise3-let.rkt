@@ -1,16 +1,12 @@
 #lang eopl
 (require rackunit)
 
-(define identifier?
-  (lambda (ident) (symbol? ident)))
-
 (define-datatype env env?
   (empty-env)
   (extend-env
-   (var identifier?)
+   (var symbol?)
    (val expval?)
    (saved-env env?)))
-
 (define apply-env
   (lambda (search-var given-env)
     (cases env given-env
@@ -19,6 +15,43 @@
                            val
                            (apply-env search-var saved-env)))
            (else eopl:error "no binding for free variable"))))
+
+(define-datatype expval expval?
+  (num-val
+   (num number?))
+  (bool-val
+   (bool boolean?))
+  (list-val
+   (list list?)))
+(define val->expval
+  (lambda (val)
+    (cond
+     ((number? val) (num-val val))
+     ((boolean? val) (bool-val val))
+     ((list? val) (list-val val))
+     (else (eopl:error val)))))
+(define expval->val
+  (lambda (val)
+    (cases expval val
+           (num-val (num) num)
+           (bool-val (bool) bool)
+           (list-val (list) list)
+           (else (eopl:error val)))))
+(define expval->num
+  (lambda (val)
+    (cases expval val
+           (num-val (num) num)
+           (else (eopl:error 'num val)))))
+(define expval->bool
+  (lambda (val)
+    (cases expval val
+           (bool-val (bool) bool)
+           (else (eopl:error "bool" val)))))
+(define expval->list
+  (lambda (val)
+    (cases expval val
+           (list-val (list) list)
+           (else (eopl:error "list" val)))))
 
 (define arith-scanner
   '((white-sp (whitespace) skip)
@@ -60,56 +93,63 @@
     (expression
      ("if" expression "then" expression "else" expression) if-exp)
     (expression
+     ("cond" (arbno expression "==>" expression) "end") cond-exp)
+    (expression
      (identifier) var-exp)
     (expression
      ("let" identifier "=" expression "in" expression) let-exp)))
 (sllgen:make-define-datatypes arith-scanner arith-grammer)
+(define value-of
+  (lambda (exp env)
+    (cases expression exp
+           (const-exp (num) (num-val num))
+           (var-exp (var) (apply-env var env))
+           (diff-exp (expr1 expr2) ((lift num-val expval->num) - env  expr1 expr2))
+           (plus-exp (expr1 expr2) ((lift num-val expval->num) + env  expr1 expr2))
+           (div-exp (expr1 expr2) ((lift num-val expval->num) / env  expr1 expr2))
+           (mul-exp (expr1 expr2) ((lift num-val expval->num) * env  expr1 expr2))
+           (equal?-exp (expr1 expr2) ((lift bool-val expval->num) = env expr1 expr2))
+           (greater?-exp (expr1 expr2) ((lift bool-val expval->num) > env expr1 expr2))
+           (less?-exp (expr1 expr2) ((lift bool-val expval->num) < env  expr1 expr2))
+           (zero?-exp (expr) ((lift bool-val expval->num) zero? env expr))
+           (minus-exp (expr) ((lift num-val expval->num) - env  expr))
+           (emptylist-exp () (list-val '()))
+           (cons-exp (expr1 expr2) (eval-cons-exp expr1 expr2 env))
+           (car-exp (expr) (val->expval (car (value-of->list expr env))))
+           (cdr-exp (expr) (val->expval (cdr (value-of->list expr env))))
+           (null?-exp (expr) (bool-val (null? (value-of->list expr env))))
+           (list-exp (exprs) (list-val (map (lambda (expr) (value-of->val expr env)) exprs)))
+           (if-exp (predicate if-exp false-exp) (eval-if-exp predicate if-exp false-exp env))
+           (cond-exp (predicates exprs) (eval-cond-exp predicates exprs env))
+           (let-exp (var val-exp body) (eval-let-exp var val-exp body env)))))
+(define eval-let-exp
+  (lambda (var val-exp body env)
+    (let ((val (value-of val-exp env)))
+      (let ((new-env (extend-env var val env)))
+        (value-of body new-env)))))
+(define eval-if-exp
+  (lambda (predicate if-exp false-exp env)
+    (let ((pred (value-of->bool predicate env)))
+      (if pred
+          (value-of if-exp env)
+          (value-of false-exp env)))))
+(define eval-cons-exp
+  (lambda (expr1 expr2 env)
+    ((lift list-val expval->val) cons env expr1 expr2)))
+(define eval-cond-exp
+  (lambda (predicates exprs env)
+    (if (or (null? predicates) (null? exprs))
+        (eopl:error "nont of predictor meets")
+        (let ((predicate (car predicates))
+              (expr (car exprs)))
+          (if (value-of->bool predicate env)
+              (val->expval (value-of->val expr env))
+              (eval-cond-exp (cdr predicates) (cdr exprs) env))))))
+
 (define scan&parse (sllgen:make-string-parser arith-scanner arith-grammer))
-
-(define-datatype expval expval?
-  (num-val
-   (num number?))
-  (bool-val
-   (bool boolean?))
-  (list-val
-   (list list?)))
-(define val->expval
-  (lambda (val)
-    (cond
-     ((number? val) (num-val val))
-     ((boolean? val) (bool-val val))
-     ((list? val) (list-val val))
-     (else (eopl:error val)))))
-
-(define expval->val
-  (lambda (val)
-    (cases expval val
-           (num-val (num) num)
-           (bool-val (bool) bool)
-           (list-val (list) list)
-           (else (eopl:error val)))))
-(define expval->num
-  (lambda (val)
-    (cases expval val
-           (num-val (num) num)
-           (else (eopl:error 'num val)))))
-
-(define expval->bool
-  (lambda (val)
-    (cases expval val
-           (bool-val (bool) bool)
-           (else (eopl:error "bool" val)))))
-
-(define expval->list
-  (lambda (val)
-    (cases expval val
-           (list-val (list) list)
-           (else (eopl:error "list" val)))))
-
 (define run
   (lambda (string env)
     (value-of-program (scan&parse string) env)))
-
 (define value-of-program
   (lambda (pgm env)
     (value-of pgm env)))
@@ -128,58 +168,12 @@
     (expval->list (value-of exp env))))
 (define lift
   (lambda (lift-f extract-f)
-    (lambda (f env exprs)
+    (lambda (f env . exprs)
     (lift-f (apply
               f
               (map
                (lambda (expr) (extract-f (value-of expr env)))
                exprs))))))
-(define value-of
-  (lambda (exp env)
-    (cases expression exp
-           (const-exp (num) (num-val num))
-           (var-exp (var) (apply-env var env))
-           (diff-exp (expr1 expr2)
-                     ((lift num-val expval->num) - env (list expr1 expr2)))
-           (plus-exp (expr1 expr2)
-                     ((lift num-val expval->num) + env (list expr1 expr2)))
-           (div-exp (expr1 expr2)
-                    ((lift num-val expval->num) / env (list expr1 expr2)))
-           (mul-exp (expr1 expr2)
-                    ((lift num-val expval->num) * env (list expr1 expr2)))
-           (equal?-exp (expr1 expr2)
-                       ((lift bool-val expval->num) = env (list expr1 expr2)))
-           (greater?-exp (expr1 expr2)
-                         ((lift bool-val expval->num) > env (list expr1 expr2)))
-           (less?-exp (expr1 expr2)
-                      ((lift bool-val expval->num) < env (list expr1 expr2)))
-           (zero?-exp (expr)
-                      ((lift bool-val expval->num) zero? env (list expr)))
-           (minus-exp (expr)
-                      ((lift num-val expval->num) - env (list expr)))
-           (emptylist-exp ()
-                          (list-val '()))
-           (cons-exp (expr1 expr2)
-                     (let ((head (value-of->val expr1 env))
-                           (tail (value-of->val expr2 env)))
-                       (list-val (cons head tail))))
-           (car-exp (expr)
-                    (val->expval (car (value-of->list expr env))))
-           (cdr-exp (expr)
-                    (val->expval (cdr (value-of->list expr env))))
-           (null?-exp (expr)
-                      (bool-val (null? (value-of->list expr env))))
-           (list-exp (exprs)
-                     (list-val (map (lambda (expr) (value-of->val expr env)) exprs)))
-           (if-exp (predicate if-exp false-exp)
-                   (let ((pred (value-of->bool predicate env)))
-                     (if pred
-                         (value-of if-exp env)
-                         (value-of false-exp env))))
-           (let-exp (var val-exp body)
-                    (let ((val (value-of val-exp env)))
-                      (let ((new-env (extend-env var val env)))
-                        (value-of body new-env)))))))
 
 (check-equal? (expval->num
                (run "-(-(x, 3), -(v, i))"
@@ -289,9 +283,20 @@
                (run "let x = 4 in list(x, -(x, 1), -(x, 3))"
                     (empty-env)))
               '(4 3 1))
+(check-equal? (expval->num
+               (run "cond
+                       zero?(x) ==> a
+                       greater?(y, x) ==> b
+                       less?(x, y) ==> c
+                     end"
+                    (extend-env 'x (num-val 1)
+                     (extend-env 'y (num-val 2)
+                      (extend-env 'a (num-val 11)
+                       (extend-env 'b (num-val 22)
+                        (extend-env 'c (num-val 33)
+                         (empty-env))))))))
+              22)
 
-;; 3.11[*] rearrange the code
-;; 3.12[*] expression ::= cond {expression ==> expression}* end shoud be lazy
 ;; 3.13[*] change language that only use numerics, 0 as false, and 1 as true
 ;; 3.14[**] expression if Bool-exp then Expression else Expression, value-of-bool-exp, obverse what changes accordingly of 3.8
 ;; 3.15[*] print, and return 1, why it cannot be expressed in specificaton? side effect!!
