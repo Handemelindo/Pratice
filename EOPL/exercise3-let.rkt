@@ -72,14 +72,6 @@
     (expression
      ("/" "(" expression "," expression ")") div-exp)
     (expression
-     ("zero?" "(" expression ")") zero?-exp)
-    (expression
-     ("equal?" "(" expression "," expression ")") equal?-exp)
-    (expression
-     ("greater?" "(" expression "," expression ")") greater?-exp)
-    (expression
-     ("less?" "(" expression "," expression ")") less?-exp)
-    (expression
      ("minus" "(" expression ")") minus-exp)
     (expression
      ("emptylist") emptylist-exp)
@@ -90,41 +82,27 @@
     (expression
      ("cdr" "(" expression ")") cdr-exp)
     (expression
-     ("null?" "(" expression ")") null?-exp)
-    (expression
      ("list" "(" (separated-list expression ",") ")") list-exp)
-    (expression
-     ("if" expression "then" expression "else" expression) if-exp)
-    (expression
-     ("cond" (arbno expression "==>" expression) "end") cond-exp)
     (expression
      (identifier) var-exp)
     (expression
-     ("let" identifier "=" expression "in" expression) let-exp)))
+     ("let" identifier "=" expression "in" expression) let-exp)
+    (expression
+     ("if" bool-exp "then" expression "else" expression) if-exp)
+    (expression
+     ("cond" (arbno bool-exp "==>" expression) "end") cond-exp)
+    (bool-exp
+     ("zero?" "(" expression ")") zero?-exp)
+    (bool-exp
+     ("equal?" "(" expression "," expression ")") equal?-exp)
+    (bool-exp
+     ("greater?" "(" expression "," expression ")") greater?-exp)
+    (bool-exp
+     ("less?" "(" expression "," expression ")") less?-exp)
+    (bool-exp
+     ("null?" "(" expression ")") null?-exp)))
 (sllgen:make-define-datatypes arith-scanner arith-grammer)
-(define value-of
-  (lambda (exp env)
-    (cases expression exp
-           (const-exp (num) (num-val num))
-           (var-exp (var) (apply-env var env))
-           (diff-exp (expr1 expr2) ((lift num-val expval->num) - env  expr1 expr2))
-           (plus-exp (expr1 expr2) ((lift num-val expval->num) + env  expr1 expr2))
-           (div-exp (expr1 expr2) ((lift num-val expval->num) / env  expr1 expr2))
-           (mul-exp (expr1 expr2) ((lift num-val expval->num) * env  expr1 expr2))
-           (equal?-exp (expr1 expr2) ((lift bool-val expval->num) = env expr1 expr2))
-           (greater?-exp (expr1 expr2) ((lift bool-val expval->num) > env expr1 expr2))
-           (less?-exp (expr1 expr2) ((lift bool-val expval->num) < env  expr1 expr2))
-           (zero?-exp (expr) ((lift bool-val expval->num) zero? env expr))
-           (minus-exp (expr) ((lift num-val expval->num) - env  expr))
-           (emptylist-exp () (list-val '()))
-           (cons-exp (expr1 expr2) (eval-cons-exp expr1 expr2 env))
-           (car-exp (expr) (val->expval (car (value-of->list expr env))))
-           (cdr-exp (expr) (val->expval (cdr (value-of->list expr env))))
-           (null?-exp (expr) (bool-val (null? (value-of->list expr env))))
-           (list-exp (exprs) (list-val (map (lambda (expr) (value-of->val expr env)) exprs)))
-           (if-exp (predicate if-exp false-exp) (eval-if-exp predicate if-exp false-exp env))
-           (cond-exp (predicates exprs) (eval-cond-exp predicates exprs env))
-           (let-exp (var val-exp body) (eval-let-exp var val-exp body env)))))
+
 (define eval-let-exp
   (lambda (var val-exp body env)
     (let ((val (value-of val-exp env)))
@@ -148,6 +126,39 @@
           (if (value-of->bool predicate env)
               (val->expval (value-of->val expr env))
               (eval-cond-exp (cdr predicates) (cdr exprs) env))))))
+
+(define value-of-expression
+  (lambda (exp env)
+    (cases expression exp
+           (const-exp (num) (num-val num))
+           (var-exp (var) (apply-env var env))
+           (diff-exp (expr1 expr2) ((lift num-val expval->num) - env  expr1 expr2))
+           (plus-exp (expr1 expr2) ((lift num-val expval->num) + env  expr1 expr2))
+           (div-exp (expr1 expr2) ((lift num-val expval->num) / env  expr1 expr2))
+           (mul-exp (expr1 expr2) ((lift num-val expval->num) * env  expr1 expr2))
+           (minus-exp (expr) ((lift num-val expval->num) - env  expr))
+           (emptylist-exp () (list-val '()))
+           (cons-exp (expr1 expr2) (eval-cons-exp expr1 expr2 env))
+           (car-exp (expr) (val->expval (car (value-of->list expr env))))
+           (cdr-exp (expr) (val->expval (cdr (value-of->list expr env))))
+           (list-exp (exprs) (list-val (map (lambda (expr) (value-of->val expr env)) exprs)))
+           (if-exp (predicate if-exp false-exp) (eval-if-exp predicate if-exp false-exp env))
+           (cond-exp (predicates exprs) (eval-cond-exp predicates exprs env))
+           (let-exp (var val-exp body) (eval-let-exp var val-exp body env)))))
+(define value-of-bool-exp
+  (lambda (exp env)
+    (cases bool-exp exp
+           (equal?-exp (expr1 expr2) ((lift bool-val expval->num) = env expr1 expr2))
+           (greater?-exp (expr1 expr2) ((lift bool-val expval->num) > env expr1 expr2))
+           (less?-exp (expr1 expr2) ((lift bool-val expval->num) < env  expr1 expr2))
+           (zero?-exp (expr) ((lift bool-val expval->num) zero? env expr))
+           (null?-exp (expr) (bool-val (null? (value-of->list expr env)))))))
+(define value-of
+  (lambda (exp env)
+    (cond
+     ((expression? exp) (value-of-expression exp env))
+     ((bool-exp? exp) (value-of-bool-exp exp env))
+     (else (eopl:error "not a valid program")))))
 
 (define scan&parse (sllgen:make-string-parser arith-scanner arith-grammer))
 (define run
@@ -300,7 +311,6 @@
                          (empty-env))))))))
               22)
 
-;; 3.14[**] expression if Bool-exp then Expression else Expression, value-of-bool-exp, obverse what changes accordingly of 3.8
 ;; 3.15[*] print, and return 1, why it cannot be expressed in specificaton? side effect!!
 ;; 3.16[**] expression ::= let {identifier = expression}* in expression
 ;; let x = 30 in let x = 1(x, 1) y = -(x, 2) in -(x, y) should be 1
