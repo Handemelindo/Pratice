@@ -1,6 +1,19 @@
 #lang eopl
 (require rackunit)
 
+(define zip
+  (lambda (xs ys)
+    (if (or (null? xs) (null? ys))
+        '()
+        (cons
+         (cons (car xs) (car ys))
+         (zip (cdr xs) (cdr ys))))))
+(define fold
+  (lambda (z append xs)
+    (if (null? xs)
+        z
+        (append (car xs) (fold z append (cdr xs))))))
+
 (define-datatype env env?
   (empty-env)
   (extend-env
@@ -86,11 +99,13 @@
     (expression
      (identifier) var-exp)
     (expression
-     ("let" identifier "=" expression "in" expression) let-exp)
+     ("let" (arbno identifier "=" expression) "in" expression) let-exp)
     (expression
      ("if" bool-exp "then" expression "else" expression) if-exp)
     (expression
      ("cond" (arbno bool-exp "==>" expression) "end") cond-exp)
+    (expression
+     ("print" "(" expression ")") print-exp)
     (bool-exp
      ("zero?" "(" expression ")") zero?-exp)
     (bool-exp
@@ -104,9 +119,12 @@
 (sllgen:make-define-datatypes arith-scanner arith-grammer)
 
 (define eval-let-exp
-  (lambda (var val-exp body env)
-    (let ((val (value-of val-exp env)))
-      (let ((new-env (extend-env var val env)))
+  (lambda (vars val-exps body env)
+    (let ((vals (map (lambda (expr) (value-of expr env)) val-exps)))
+      (let ((new-env (fold env
+                           (lambda (pair extended-env)
+                             (extend-env (car pair) (cdr pair) extended-env))
+                           (zip vars vals))))
         (value-of body new-env)))))
 (define eval-if-exp
   (lambda (predicate if-exp false-exp env)
@@ -144,7 +162,10 @@
            (list-exp (exprs) (list-val (map (lambda (expr) (value-of->val expr env)) exprs)))
            (if-exp (predicate if-exp false-exp) (eval-if-exp predicate if-exp false-exp env))
            (cond-exp (predicates exprs) (eval-cond-exp predicates exprs env))
-           (let-exp (var val-exp body) (eval-let-exp var val-exp body env)))))
+           (let-exp (vars val-exps body) (eval-let-exp vars val-exps body env))
+           (print-exp (exp)
+                      (display (value-of->val exp env))
+                      (num-val 1)))))
 (define value-of-bool-exp
   (lambda (exp env)
     (cases bool-exp exp
@@ -310,12 +331,18 @@
                         (extend-env 'c (num-val 33)
                          (empty-env))))))))
               22)
+(check-equal? (expval->num
+               (run "let x = 30
+                     in let x = -(x, 1)
+                            y = -(x, 2)
+                        in -(x, y)"
+                    (empty-env)))
+              1)
 
-;; 3.15[*] print, and return 1, why it cannot be expressed in specificaton? side effect!!
 ;; 3.16[**] expression ::= let {identifier = expression}* in expression
-;; let x = 30 in let x = 1(x, 1) y = -(x, 2) in -(x, y) should be 1
+;; let x = 30 in let x = -(x, 1) y = -(x, 2) in -(x, y) should be 1
 ;; 3.17[**] self indicated let*
-;; let x = 30 in let* x = -(x, 1) y = -(x, 2) in -(x, y)
+;; let x = 30 in let* x = -(x, 1) y = -(x, 2) in -(x, y) shoud be 2
 ;; 3.18[**] expression ::= unpack {identifier}* = expression in expression,
 ;; unpack x y z = lst bind x, y, z repectively if lst is list and of size 3, report error otherwise
 ;; let u = 7 in unpack x y = cons(u, cons(3, emptylist)) in -(x, y) should be 4
