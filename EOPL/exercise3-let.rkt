@@ -19,22 +19,21 @@
 (define-datatype expval expval?
   (num-val
    (num number?))
-  (bool-val
-   (bool boolean?))
   (list-val
    (list list?)))
+(define bool-val
+  (lambda (p)
+    (num-val (if p 1 0))))
 (define val->expval
   (lambda (val)
     (cond
      ((number? val) (num-val val))
-     ((boolean? val) (bool-val val))
      ((list? val) (list-val val))
      (else (eopl:error val)))))
 (define expval->val
   (lambda (val)
     (cases expval val
            (num-val (num) num)
-           (bool-val (bool) bool)
            (list-val (list) list)
            (else (eopl:error val)))))
 (define expval->num
@@ -45,7 +44,11 @@
 (define expval->bool
   (lambda (val)
     (cases expval val
-           (bool-val (bool) bool)
+           (num-val (num)
+                    (cond
+                     ((= 0 num) #f)
+                     ((= 1 num) #t)
+                     (else (eopl:error "invalid bool"))))
            (else (eopl:error "bool" val)))))
 (define expval->list
   (lambda (val)
@@ -297,7 +300,6 @@
                          (empty-env))))))))
               22)
 
-;; 3.13[*] change language that only use numerics, 0 as false, and 1 as true
 ;; 3.14[**] expression if Bool-exp then Expression else Expression, value-of-bool-exp, obverse what changes accordingly of 3.8
 ;; 3.15[*] print, and return 1, why it cannot be expressed in specificaton? side effect!!
 ;; 3.16[**] expression ::= let {identifier = expression}* in expression
