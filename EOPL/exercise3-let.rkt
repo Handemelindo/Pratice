@@ -12,7 +12,7 @@
   (lambda (z append xs)
     (if (null? xs)
         z
-        (append (car xs) (fold z append (cdr xs))))))
+        (fold (append z (car xs)) append (cdr xs)))))
 
 (define-datatype env env?
   (empty-env)
@@ -101,6 +101,8 @@
     (expression
      ("let" (arbno identifier "=" expression) "in" expression) let-exp)
     (expression
+     ("let*" (arbno identifier "=" expression) "in" expression) let*-exp)
+    (expression
      ("if" bool-exp "then" expression "else" expression) if-exp)
     (expression
      ("cond" (arbno bool-exp "==>" expression) "end") cond-exp)
@@ -122,10 +124,19 @@
   (lambda (vars val-exps body env)
     (let ((vals (map (lambda (expr) (value-of expr env)) val-exps)))
       (let ((new-env (fold env
-                           (lambda (pair extended-env)
+                           (lambda (extended-env pair)
                              (extend-env (car pair) (cdr pair) extended-env))
                            (zip vars vals))))
         (value-of body new-env)))))
+(define eval-let*-exp
+  (lambda (vars val-exps body env)
+    (let ((new-env (fold env
+                         (lambda (extended-env pair)
+                           (let ((var (car pair))
+                                 (val (value-of (cdr pair) extended-env)))
+                             (extend-env var val extended-env)))
+                         (zip vars val-exps))))
+      (value-of body new-env))))
 (define eval-if-exp
   (lambda (predicate if-exp false-exp env)
     (let ((pred (value-of->bool predicate env)))
@@ -163,6 +174,7 @@
            (if-exp (predicate if-exp false-exp) (eval-if-exp predicate if-exp false-exp env))
            (cond-exp (predicates exprs) (eval-cond-exp predicates exprs env))
            (let-exp (vars val-exps body) (eval-let-exp vars val-exps body env))
+           (let*-exp (vars val-exps body) (eval-let*-exp vars val-exps body env))
            (print-exp (exp)
                       (display (value-of->val exp env))
                       (num-val 1)))))
@@ -338,11 +350,14 @@
                         in -(x, y)"
                     (empty-env)))
               1)
+(check-equal? (expval->num
+               (run "let x = 30
+                     in let* x = -(x, 1)
+                            y = -(x, 2)
+                        in -(x, y)"
+                    (empty-env)))
+              2)
 
-;; 3.16[**] expression ::= let {identifier = expression}* in expression
-;; let x = 30 in let x = -(x, 1) y = -(x, 2) in -(x, y) should be 1
-;; 3.17[**] self indicated let*
-;; let x = 30 in let* x = -(x, 1) y = -(x, 2) in -(x, y) shoud be 2
 ;; 3.18[**] expression ::= unpack {identifier}* = expression in expression,
 ;; unpack x y z = lst bind x, y, z repectively if lst is list and of size 3, report error otherwise
 ;; let u = 7 in unpack x y = cons(u, cons(3, emptylist)) in -(x, y) should be 4
