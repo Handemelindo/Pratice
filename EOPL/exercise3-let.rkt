@@ -103,6 +103,8 @@
     (expression
      ("let*" (arbno identifier "=" expression) "in" expression) let*-exp)
     (expression
+     ("unpack" (arbno identifier) "=" expression "in" expression) unpack-exp)
+    (expression
      ("if" bool-exp "then" expression "else" expression) if-exp)
     (expression
      ("cond" (arbno bool-exp "==>" expression) "end") cond-exp)
@@ -155,6 +157,18 @@
           (if (value-of->bool predicate env)
               (val->expval (value-of->val expr env))
               (eval-cond-exp (cdr predicates) (cdr exprs) env))))))
+(define eval-unpack-exp
+  (lambda (vars lst-vals body env)
+    (let ((vals (value-of->list lst-vals env)))
+      (if (= (length vars) (length vals))
+          (let ((new-env (fold env
+                               (lambda (extended-env pair)
+                                 (let ((var (car pair))
+                                       (val (cdr pair)))
+                                   (extend-env var (val->expval val) extended-env)))
+                               (zip vars vals))))
+            (value-of body new-env))
+          (eopl:error "identifiers and list cannot match")))))
 
 (define value-of-expression
   (lambda (exp env)
@@ -175,6 +189,7 @@
            (cond-exp (predicates exprs) (eval-cond-exp predicates exprs env))
            (let-exp (vars val-exps body) (eval-let-exp vars val-exps body env))
            (let*-exp (vars val-exps body) (eval-let*-exp vars val-exps body env))
+           (unpack-exp (idens lst-exp body) (eval-unpack-exp idens lst-exp body env))
            (print-exp (exp)
                       (display (value-of->val exp env))
                       (num-val 1)))))
@@ -357,8 +372,15 @@
                         in -(x, y)"
                     (empty-env)))
               2)
-
-;; 3.18[**] expression ::= unpack {identifier}* = expression in expression,
-;; unpack x y z = lst bind x, y, z repectively if lst is list and of size 3, report error otherwise
-;; let u = 7 in unpack x y = cons(u, cons(3, emptylist)) in -(x, y) should be 4
-;; let u = 7 in unpack x y = list(u, 3) in -(x, y)
+(check-equal? (expval->num
+               (run "let u = 7
+                     in unpack x y = cons(u, cons(3, emptylist))
+                        in -(x, y)"
+                    (empty-env)))
+              4)
+(check-equal? (expval->num
+               (run "let u = 7
+                     in unpack x y = list(u, 3)
+                        in -(x, y)"
+                    (empty-env)))
+              4)
