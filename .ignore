@@ -1,39 +1,39 @@
 # -*- mode: gitignore; -*-
-2 *~
-3 \#*\#
-4 /.emacs.desktop
-5 /.emacs.desktop.lock
-6 *.elc
-7 auto-save-list
-8 tramp
-9 .\#*
-10
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
 
-11 # Org-mode
-12 .org-id-locations
-13 *_archive
-14
 
-15 # flymake-mode
-16 *_flymake.*
-17
+# Org-mode
+.org-id-locations
+*_archive
 
-18 # eshell files
-19 /eshell/history
-20 /eshell/lastdir
-21
 
-22 # elpa packages
-23 /elpa/
-24
+# flymake-mode
+*_flymake.*
 
-25 # reftex files
-26 *.rel
-27
 
-28 # AUCTeX auto folder
-29 /auto/
-30
+# eshell files
+/eshell/history
+/eshell/lastdir
 
-31 # cask packages
-32 .cask/
+
+# elpa packages
+/elpa/
+
+
+# reftex files
+*.rel
+
+
+# AUCTeX auto folder
+/auto/
+
+
+# cask packages
+.cask/
