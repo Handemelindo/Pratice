@@ -220,3 +220,11 @@
                      in (factorial 5)"
                     (empty-env)))
               120)
+(check-equal? (expval->num
+               (run "let makeeven = (proc k1 k2) (proc x) if (zero? x) then 1 else ((k1 k2 k1) (- x 1))
+                     in let makeodd = (proc k1 k2) (proc x) if (zero? x) then 0 else ((k1 k2 k1) (- x 1))
+                        in let even = (makeeven makeodd makeeven)
+                           in let odd = (makeodd makeeven makeodd)
+                              in (- (odd 6) (even 6))"
+                    (empty-env)))
+              -1)
