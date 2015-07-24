@@ -27,7 +27,7 @@
                        (if (eqv? var search-var)
                            val
                            (apply-env search-var saved-env)))
-           (else eopl:error "no binding for free variable"))))
+           (else eopl:error "no binding for free variable" search-var given-env))))
 
 (define-datatype expval expval?
   (num-val
@@ -109,7 +109,7 @@
                                             (lambda (extended-env pair)
                                               (extend-env (car pair) (cdr pair) extended-env))
                                             (zip vars vals)))
-                            (eopl:error "vars and vals are not paired")))))))
+                            (eopl:error "vars and vals are not paired" vars vals)))))))
 (define eval-let-exp
   (lambda (var val-exp body env)
     (let ((val (value-of val-exp env)))
@@ -193,3 +193,30 @@
                      in (add 1 2 3)"
                     (empty-env)))
               6)
+(check-equal? (expval->num
+               (run "let makemult = (proc maker)
+                                      (proc x)
+                                        if (zero? x)
+                                        then 0
+                                        else (- ((maker maker) (- x 1)) (- 0 4))
+                     in let times4 = (proc x) ((makemult makemult) x)
+                        in (times4 3)"
+                    (empty-env)))
+              12)
+(check-equal? (expval->num
+               (run "let factorial = let plus = (proc x y) (- x (- 0 y))
+                                     in let times = let maketimes = (proc maker)
+                                                                      (proc x y)
+                                                                        if (zero? y)
+                                                                        then 0
+                                                                        else (plus x ((maker maker) x (- y 1)))
+                                                    in (maketimes maketimes)
+                                        in let makefact = (proc maker)
+                                                            (proc x)
+                                                              if (zero? x)
+                                                              then 1
+                                                              else (times x ((maker maker) (- x 1)))
+                                           in (makefact makefact)
+                     in (factorial 5)"
+                    (empty-env)))
+              120)
