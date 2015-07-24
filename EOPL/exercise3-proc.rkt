@@ -67,21 +67,22 @@
     (number (digit (arbno digit)) number)))
 (define arith-grammer
   '((expression
-    (number) const-exp)
+     (number) const-exp)
     (expression
-     ("-" "(" expression "," expression ")") diff-exp)
+     ("(-" expression expression ")") diff-exp)
     (expression
      (identifier) var-exp)
     (expression
-     ("proc" "(" (arbno identifier) ")" expression) proc-exp)
+     ("(proc" (arbno identifier) ")" expression) proc-exp)
+    (expression
+     ("(zero?" expression ")") zero?-exp)
     (expression
      ("(" expression (arbno expression) ")") apply-exp)
     (expression
      ("let" identifier "=" expression "in" expression) let-exp)
     (expression
      ("if" expression "then" expression "else" expression) if-exp)
-    (expression
-     ("zero?" "(" expression ")") zero?-exp)))
+    ))
 (sllgen:make-define-datatypes arith-scanner arith-grammer)
 
 (define value-of
@@ -148,7 +149,7 @@
                exprs))))))
 
 (check-equal? (expval->num
-               (run "-(-(x, 3), -(v, i))"
+               (run "(- (- x 3) (- v i))"
                     (extend-env 'i (num-val 1)
                      (extend-env 'v (num-val 5)
                       (extend-env 'x (num-val 10)
@@ -156,14 +157,14 @@
               3)
 
 (check-equal? (expval->num
-               (run "if zero?(-(x, 11)) then -(y, 2) else -(y, 4)"
+               (run "if (zero? (- x 11)) then (- y 2) else (- y 4)"
                     (extend-env 'x (num-val 33)
                      (extend-env 'y (num-val 22)
                       (empty-env)))))
               18)
 
 (check-equal? (expval->num
-               (run "if zero?(-(x, 11)) then -(y, 2) else -(y, 4)"
+               (run "if (zero? (- x 11)) then (- y 2) else (- y 4)"
                     (extend-env 'x (num-val 11)
                      (extend-env 'y (num-val 22)
                       (empty-env)))))
@@ -173,21 +174,22 @@
 (check-equal? (expval->num
                (run "let x = 7
                      in let y = 2
-                        in let y = let x = -(x, 1) in -(x, y)
-                           in -(-(x, 8), y)"
+                        in let y = let x = (- x 1) in (- x y)
+                           in (- (- x 8) y)"
                     (empty-env)))
               -5)
 
 (check-equal? (expval->num
                (run "let x = 200
-                     in let f = proc (z) -(z, x)
+                     in let f = (proc z) (- z x)
                         in let x = 100
-                           in let g = proc (z) -(z, x)
-                              in -((f 1), (g 1))"
+                           in let g = (proc z) (- z x)
+                              in (- (f 1) (g 1))"
                     (empty-env)))
               -100)
+
 (check-equal? (expval->num
-               (run "let add = proc (x y z) -(x, -(0, -(y, -(0, z))))
+               (run "let add = (proc x y z) (- x (- 0 (- y (- 0 z))))
                      in (add 1 2 3)"
                     (empty-env)))
               6)
