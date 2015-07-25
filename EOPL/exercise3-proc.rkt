@@ -44,6 +44,14 @@
                      (lambda (z x) (and z x))
                      (map symbol? v)))))
    (body expression?)
+   (bind-env env?))
+  (trace
+   (var (lambda (v)
+          (and (pair? v)
+               (fold #t
+                     (lambda (z x) (and z x))
+                     (map symbol? v)))))
+   (body expression?)
    (bind-env env?)))
 (define expval->num
   (lambda (val)
@@ -75,6 +83,8 @@
     (expression
      ("(proc" (arbno identifier) ")" expression) proc-exp)
     (expression
+     ("(traceproc" (arbno identifier) ")" expression) traceproc-exp)
+    (expression
      ("(zero?" expression ")") zero?-exp)
     (expression
      ("(" expression (arbno expression) ")") apply-exp)
@@ -90,26 +100,77 @@
     (cases expression exp
            (const-exp (num) (num-val num))
            (var-exp (var) (apply-env var env))
-           (proc-exp (vars body) (proc-val (procedure vars body env)))
+           (proc-exp (vars body) (proc-val (procedure vars body (filter-env-in-exp body vars env (empty-env)))))
+           (traceproc-exp (vars body) (proc-val (trace vars body (filter-env-in-exp body vars env (empty-env)))))
            (apply-exp (rator rands) (eval-apply-exp rator rands env))
            (diff-exp (expr1 expr2) ((lift num-val expval->num) - env  expr1 expr2))
            (if-exp (predicate if-exp false-exp) (eval-if-exp predicate if-exp false-exp env))
            (let-exp (var val-exp body) (eval-let-exp var val-exp body env))
            (zero?-exp (expr) ((lift bool-val expval->num) zero? env expr))
            (else (eopl:error "not a valid expression" exp)))))
+(define contain?
+  (lambda (vars var)
+    (cond
+     ((symbol? vars) (eqv? vars var))
+     ((null? vars) #f)
+     ((eqv? var (car vars)) #t)
+     (else (contain? (cdr vars) var)))))
+(define filter-env-in-exp
+  (lambda (exp bind env subenv)
+    (cases expression exp
+           (const-exp (num) subenv)
+           (proc-exp (vars body) (filter-env-in-exp body (append bind vars) env subenv))
+           (var-exp (var)
+                    (if (contain? bind var)
+                        subenv
+                        (extend-env var (apply-env var env) subenv)))
+           (apply-exp (rator rands)
+                      (fold subenv
+                            (lambda (extended-env subexp)
+                              (filter-env-in-exp subexp bind env extended-env))
+                            (cons rator rands)))
+           (diff-exp (expr1 expr2) (fold subenv
+                                         (lambda (extended-env subexp)
+                                           (filter-env-in-exp subexp bind env extended-env))
+                                         (list expr1 expr2)))
+           (if-exp (predicate if-exp false-exp) (fold subenv
+                                                      (lambda (extended-env subexp)
+                                                        (filter-env-in-exp subexp bind env extended-env))
+                                                      (list predicate if-exp false-exp)))
+           (let-exp (var val-exp body) (filter-env-in-exp body (append bind var) env subenv))
+           (zero?-exp (expr) (filter-env-in-exp expr bind env subenv))
+           (else (eopl:error "not a valid expression" exp)))))
 (define eval-apply-exp
   (lambda (rator rands env)
     (let ((proc1 (value-of->proc rator env))
           (vals (map (lambda (val) (value-of val env)) rands)))
-      (cases proc proc1
-             (procedure (vars body bind-env)
-                        (if (= (length vars) (length vals))
-                            (value-of body
-                                      (fold bind-env
-                                            (lambda (extended-env pair)
-                                              (extend-env (car pair) (cdr pair) extended-env))
-                                            (zip vars vals)))
-                            (eopl:error "vars and vals are not paired" vars vals)))))))
+      (let ((eval-procedure (lambda (vars body bind-env)
+                              (if (= (length vars) (length vals))
+                                  (value-of body
+                                            (fold bind-env
+                                                  (lambda (extended-env pair)
+                                                    (extend-env (car pair) (cdr pair) extended-env))
+                                                  (zip vars vals)))
+                                  (eopl:error "vars and vals are not paired" vars vals)))))
+        (cases proc proc1
+               (procedure (vars body bind-env)
+                          (eval-procedure vars body bind-env))
+               (trace (vars body bind-env)
+                      (display "proc entry")
+                      (display (newline))
+                      (display "vars: ")
+                      (display vars)
+                      (display (newline))
+                      (display "body: ")
+                      (display body)
+                      (display (newline))
+                      (display "bind-env: ")
+                      (display bind-env)
+                      (display (newline))
+                      (let ((result (eval-procedure vars body bind-env)))
+                        (display "proc exit")
+                        (display (newline))
+                        result)))))))
 (define eval-let-exp
   (lambda (var val-exp body env)
     (let ((val (value-of val-exp env)))
@@ -181,10 +242,12 @@
 
 (check-equal? (expval->num
                (run "let x = 200
-                     in let f = (proc z) (- z x)
-                        in let x = 100
-                           in let g = (proc z) (- z x)
-                              in (- (f 1) (g 1))"
+                     in let z = 3
+                        in let k = 97
+                           in let f = (traceproc z) (- z x)
+                              in let x = 100
+                                 in let g = (traceproc z) (- z x)
+                                    in (- (f 1) (g 1))"
                     (empty-env)))
               -100)
 
@@ -228,3 +291,12 @@
                               in (- (odd 6) (even 6))"
                     (empty-env)))
               -1)
+(check-equal? (expval->num
+               (run "let y = (proc f)
+                               let d = (proc x) (proc z) ((f (x x)) z)
+                               in (f (d d))
+                     in let maketimes = (proc y) (proc f) (proc x) if (zero? x) then 0 else (- (f (- x 1)) (- 0 y))
+                        in let times = (proc i j) ((y (maketimes j)) i)
+                           in (times 4 3)"
+                    (empty-env)))
+              12)
