@@ -52,7 +52,10 @@
                      (lambda (z x) (and z x))
                      (map symbol? v)))))
    (body expression?)
-   (bind-env env?)))
+   (bind-env env?))
+  (dprocedure
+   (var symbol?)
+   (body expression?)))
 (define expval->num
   (lambda (val)
     (cases expval val
@@ -83,7 +86,11 @@
     (expression
      ("(proc" (arbno identifier) ")" expression) proc-exp)
     (expression
+     ("(dproc" identifier ")" expression) dproc-exp)
+    (expression
      ("(traceproc" (arbno identifier) ")" expression) traceproc-exp)
+    (expression
+     ("(dapply" expression expression")") dapply-exp)
     (expression
      ("(zero?" expression ")") zero?-exp)
     (expression
@@ -101,8 +108,10 @@
            (const-exp (num) (num-val num))
            (var-exp (var) (apply-env var env))
            (proc-exp (vars body) (proc-val (procedure vars body (filter-env-in-exp body vars env (empty-env)))))
+           (dproc-exp (var body) (proc-val (dprocedure var body)))
            (traceproc-exp (vars body) (proc-val (trace vars body (filter-env-in-exp body vars env (empty-env)))))
            (apply-exp (rator rands) (eval-apply-exp rator rands env))
+           (dapply-exp (rator rands) (eval-dapply-exp rator rands env))
            (diff-exp (expr1 expr2) ((lift num-val expval->num) - env  expr1 expr2))
            (if-exp (predicate if-exp false-exp) (eval-if-exp predicate if-exp false-exp env))
            (let-exp (var val-exp body) (eval-let-exp var val-exp body env))
@@ -140,6 +149,14 @@
            (let-exp (var val-exp body) (filter-env-in-exp body (append bind var) env subenv))
            (zero?-exp (expr) (filter-env-in-exp expr bind env subenv))
            (else (eopl:error "not a valid expression" exp)))))
+(define eval-dapply-exp
+  (lambda (rator rand env)
+    (let ((proc1 (value-of->proc rator env))
+          (val (value-of rand env)))
+      (cases proc proc1
+             (dprocedure (var body)
+                         (value-of body (extend-env var val env)))
+             (else (eopl:error "dapply on" rator))))))
 (define eval-apply-exp
   (lambda (rator rands env)
     (let ((proc1 (value-of->proc rator env))
@@ -170,7 +187,8 @@
                       (let ((result (eval-procedure vars body bind-env)))
                         (display "proc exit")
                         (display (newline))
-                        result)))))))
+                        result))
+               (else (eopl:error "eval apply on" proc1)))))))
 (define eval-let-exp
   (lambda (var val-exp body env)
     (let ((val (value-of val-exp env)))
@@ -300,3 +318,18 @@
                            in (times 4 3)"
                     (empty-env)))
               12)
+(check-equal? (expval->num
+               (run "let a = 3
+                     in let p = (dproc x) (- x a)
+                        in let a = 5
+                           in (- a (dapply p 2))"
+                    (empty-env)))
+              8)
+(check-equal? (expval->num
+               (run "let a = 3
+                     in let p = (dproc z) a
+                        in let f = (dproc x) (dapply p 0)
+                           in let a = 5
+                              in (dapply f 2)"
+                    (empty-env)))
+              5)
