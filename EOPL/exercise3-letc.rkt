@@ -1,79 +1,76 @@
 #lang eopl
 (require rackunit)
 
-(define zip
-  (lambda (xs ys)
-    (if (or (null? xs) (null? ys))
-        '()
-        (cons
-         (cons (car xs) (car ys))
-         (zip (cdr xs) (cdr ys))))))
 (define fold
   (lambda (z append xs)
     (if (null? xs)
         z
         (fold (append z (car xs)) append (cdr xs)))))
+(define zip
+  (lambda (xs . xss)
+    (if (fold #f (lambda (acc pred) (or acc pred)) (map null? (cons xs xss)))
+        '()
+        (cons
+         (map car (cons xs xss))
+         (apply zip (map cdr (cons xs xss)))))))
 
-(define-datatype env env?
-  (empty-env)
-  (extend-env
-   (var symbol?)
-   (val expval?)
-   (saved-env env?))
-  (extend-env-rec
-   (p-name symbol?)
-   (b-vars (lambda (v)
-             (and (pair? v)
-                  (fold #t
-                        (lambda (z x) (and z x))
-                        (map symbol? v)))))
-   (p-body expression?)
-   (saved-env env?)))
+(define empty-env
+  (lambda ()
+    (lambda (given-var initial-env)
+      (eopl:error "no binding for " given-var))))
+(define extend-env
+  (lambda (var val saved-env)
+    (lambda (given-var initial-env)
+      (if (eqv? var given-var)
+          val
+          (saved-env given-var initial-env)))))
+(define extend-env-rec
+  (lambda (p-name b-vars p-body saved-env)
+    (lambda (given-var initial-env)
+      (if (eqv? given-var p-name)
+          (procedure b-vars p-body initial-env)
+          (saved-env given-var initial-env)))))
 (define apply-env
-  (lambda (search-var given-env)
-    (cases env given-env
-           (extend-env (var val saved-env)
-                       (if (eqv? var search-var)
-                           val
-                           (apply-env search-var saved-env)))
-           (extend-env-rec (p-name b-vars p-body saved-env)
-                           (if (eqv? p-name search-var)
-                               (proc-val (procedure b-vars p-body given-env))
-                               (apply-env search-var saved-env)))
-           (else eopl:error "no binding for free variable" search-var given-env))))
+  (lambda (var env)
+    (env var env)))
 
-(define-datatype expval expval?
-  (num-val
-   (num number?))
-  (bool-val
-   (bool boolean?))
-  (proc-val
-   (proc proc?)))
-(define-datatype proc proc?
-  (procedure
-   (var (lambda (v)
-          (and (pair? v)
-               (fold #t
-                     (lambda (z x) (and z x))
-                     (map symbol? v)))))
-   (body expression?)
-   (bind-env env?)))
+(define num-val
+  (lambda (val)
+    (if (number? val)
+        val
+        (eopl:error "not a number" val))))
+(define bool-val
+  (lambda (val)
+    (if (boolean? val)
+        val
+        (eopl:error "not a boolean" val))))
+(define proc-val
+  (lambda (val)
+    (if (procedure? val)
+        val
+        (eopl:error "not a proc" val))))
 (define expval->num
   (lambda (val)
-    (cases expval val
-           (num-val (num) num)
-           (else (eopl:error 'num val)))))
+    (if (number? val)
+        val
+        (eopl:error "not a number" val))))
 (define expval->bool
   (lambda (val)
-    (cases expval val
-           (bool-val (bool) bool)
-           (else (eopl:error 'bool val)))))
+    (if (boolean? val)
+        val
+        (eopl:error "not a number" val))))
 (define expval->proc
   (lambda (val)
-    (cases expval val
-           (proc-val (proc) proc)
-           (else (eopl:error 'proc)))))
-
+    (if (procedure? val)
+        val
+        (eopl:error "not a number" val))))
+(define procedure
+  (lambda (vars body bind-env)
+    (lambda (vals)
+      (value-of body (fold bind-env
+                           (lambda (extended-env pair)
+                             (extend-env (car pair) (cadr pair) extended-env))
+                           (zip vars vals))))))
 (define arith-scanner
   '((white-sp (whitespace) skip)
     (identifier (letter (arbno (or letter digit))) symbol)
@@ -94,7 +91,7 @@
     (expression
      ("let" identifier "=" expression "in" expression) let-exp)
     (expression
-     ("letrec" identifier "(" (arbno identifier) ")" "=" expression "in" expression) letrec-exp)
+     ("letrec" (arbno identifier "(" (arbno identifier) ")" "=" expression) "in" expression) letrec-exp)
     (expression
      ("if" expression "then" expression "else" expression) if-exp)
     ))
@@ -106,25 +103,28 @@
            (const-exp (num) (num-val num))
            (var-exp (var) (apply-env var env))
            (proc-exp (vars body) (proc-val (procedure vars body env)))
-           (letrec-exp (p-name b-vars p-body letrec-body)
-                       (value-of letrec-body (extend-env-rec p-name b-vars p-body env)))
+           (letrec-exp (p-names b-varss p-bodys letrec-body) (eval-letrec-exp p-names b-varss p-bodys letrec-body env))
            (apply-exp (rator rands) (eval-apply-exp rator rands env))
            (diff-exp (expr1 expr2) ((lift num-val expval->num) - env  expr1 expr2))
            (if-exp (predicate if-exp false-exp) (eval-if-exp predicate if-exp false-exp env))
            (let-exp (var val-exp body) (eval-let-exp var val-exp body env))
            (zero?-exp (expr) ((lift bool-val expval->num) zero? env expr))
            (else (eopl:error "not a valid expression" exp)))))
+(define eval-letrec-exp
+  (lambda (p-names b-varss p-bodys letrec-body env)
+    (value-of letrec-body (fold
+                           env
+                           (lambda (extended-env triple)
+                             (let ((p-name (car triple))
+                                   (b-vars (cadr triple))
+                                   (p-body (caddr triple)))
+                               (extend-env-rec p-name b-vars p-body extended-env)))
+                           (zip p-names b-varss p-bodys)))))
 (define eval-apply-exp
   (lambda (rator rands env)
     (let ((proc1 (value-of->proc rator env))
           (vals (map (lambda (val) (value-of val env)) rands)))
-      (cases proc proc1
-             (procedure (vars body bind-env)
-                        (value-of body (fold bind-env
-                                             (lambda (extended-env pair)
-                                               (extend-env (car pair) (cdr pair) extended-env))
-                                             (zip vars vals))))
-             (else (eopl:error "apply on" rator))))))
+      (proc1 vals))))
 (define eval-let-exp
   (lambda (var val-exp body env)
     (let ((val (value-of val-exp env)))
@@ -216,3 +216,10 @@
                      in (times 3 4)"
                     (empty-env)))
               12)
+(check-equal? (expval->num
+               (run "letrec
+                       even(x) = if zero?(x) then 1 else (odd  -(x, 1))
+                       odd(x)  = if zero?(x) then 0 else (even -(x, 1))
+                     in (odd 13)"
+                    (empty-env)))
+              1)
