@@ -16,33 +16,17 @@
 
 (define empty-env
   (lambda ()
-    (lambda (given-var initial-env)
+    (lambda (given-var)
       (eopl:error "no binding for " given-var))))
 (define extend-env
   (lambda (var val saved-env)
-    (lambda (given-var initial-env)
+    (lambda (given-var)
       (if (eqv? var given-var)
           val
-          (saved-env given-var initial-env)))))
-(define extend-env-rec
-  (lambda (p-name b-vars p-body saved-env)
-    (let* ((mutable-env saved-env)
-           (val (proc-val (lambda (vals)
-                            (value-of p-body (fold mutable-env
-                                                 (lambda (extended-env pair)
-                                                   (extend-env (car pair) (cadr pair) extended-env))
-                                                 (zip b-vars vals)))))))
-      (set! mutable-env (extend-env p-name val mutable-env))
-      mutable-env)))
-;; (define extend-env-rec
-;;   (lambda (p-name b-vars p-body saved-env)
-;;     (lambda (given-var initial-env)
-;;       (if (eqv? given-var p-name)
-;;           (procedure b-vars p-body initial-env)
-;;           (saved-env given-var initial-env)))))
+          (saved-env given-var)))))
 (define apply-env
   (lambda (var env)
-    (env var env)))
+    (env var)))
 
 (define num-val
   (lambda (val)
@@ -120,16 +104,38 @@
            (let-exp (var val-exp body) (eval-let-exp var val-exp body env))
            (zero?-exp (expr) ((lift bool-val expval->num) zero? env expr))
            (else (eopl:error "not a valid expression" exp)))))
+
+(define extend-env-rec
+  (lambda (p-name b-vars p-body saved-env)
+    (let* ((mutable-env saved-env)
+           (val (proc-val (lambda (vals)
+                            (value-of p-body (fold mutable-env
+                                                 (lambda (extended-env pair)
+                                                   (extend-env (car pair) (cadr pair) extended-env))
+                                                 (zip b-vars vals)))))))
+      (set! mutable-env (extend-env p-name val mutable-env))
+      mutable-env)))
 (define eval-letrec-exp
   (lambda (p-names b-varss p-bodys letrec-body env)
-    (value-of letrec-body (fold
-                           env
-                           (lambda (extended-env triple)
-                             (let ((p-name (car triple))
-                                   (b-vars (cadr triple))
-                                   (p-body (caddr triple)))
-                               (extend-env-rec p-name b-vars p-body extended-env)))
-                           (zip p-names b-varss p-bodys)))))
+    (let* ((mutable-env env)
+           (acc-env (fold
+                     env
+                     (lambda (extended-env triple)
+                       (let ((p-name (car triple))
+                             (b-vars (cadr triple))
+                             (p-body (caddr triple)))
+                         ;; extend-env with procedures with mutable-env.
+                         ;; due to reference by copy, we cannot use a function to simplify this.
+                         (extend-env p-name
+                                     (proc-val (lambda (vals)
+                                                 (value-of p-body (fold mutable-env
+                                                                        (lambda (extended-env pair)
+                                                                          (extend-env (car pair) (cadr pair) extended-env))
+                                                                        (zip b-vars vals)))))
+                                     extended-env)))
+                     (zip p-names b-varss p-bodys))))
+      (set! mutable-env acc-env)
+      (value-of letrec-body mutable-env))))
 (define eval-apply-exp
   (lambda (rator rands env)
     (let ((proc1 (value-of->proc rator env))
@@ -226,10 +232,10 @@
                      in (times 3 4)"
                     (empty-env)))
               12)
-;; (check-equal? (expval->num
-;;                (run "letrec
-;;                        even(x) = if zero?(x) then 1 else (odd  -(x, 1))
-;;                        odd(x)  = if zero?(x) then 0 else (even -(x, 1))
-;;                      in (odd 13)"
-;;                     (empty-env)))
-;;               1)
+(check-equal? (expval->num
+               (run "letrec
+                       even(x) = if zero?(x) then 1 else (odd  -(x, 1))
+                       odd(x)  = if zero?(x) then 0 else (even -(x, 1))
+                     in (odd 13)"
+                    (empty-env)))
+              1)
