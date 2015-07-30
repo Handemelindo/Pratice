@@ -82,6 +82,10 @@
     (expression
      ("(-" expression expression ")") diff-exp)
     (expression
+     ("(*" expression expression ")") mult-exp)
+    (expression
+     ("(+" expression expression ")") plus-exp)
+    (expression
      (identifier) var-exp)
     (expression
      ("(proc" (arbno identifier) ")" expression) proc-exp)
@@ -113,6 +117,8 @@
            (apply-exp (rator rands) (eval-apply-exp rator rands env))
            (dapply-exp (rator rands) (eval-dapply-exp rator rands env))
            (diff-exp (expr1 expr2) ((lift num-val expval->num) - env  expr1 expr2))
+           (mult-exp (expr1 expr2) ((lift num-val expval->num) * env  expr1 expr2))
+           (plus-exp (expr1 expr2) ((lift num-val expval->num) + env  expr1 expr2))
            (if-exp (predicate if-exp false-exp) (eval-if-exp predicate if-exp false-exp env))
            (let-exp (var val-exp body) (eval-let-exp var val-exp body env))
            (zero?-exp (expr) ((lift bool-val expval->num) zero? env expr))
@@ -333,3 +339,25 @@
                               in (dapply f 2)"
                     (empty-env)))
               5)
+(check-equal? (expval->num
+               (run "let fact = (dproc n) (+ n 1)
+                     in let fact = (dproc n)
+                                     if (zero? n)
+                                     then 1
+                                     else (* n (dapply fact (- n 1)))
+                        in (dapply fact 5)"
+                    (empty-env)))
+              120)
+
+(check-equal? (expval->num
+               (run "let even = (dproc x) if (zero? x) then 1 else (dapply odd (- x 1))
+                     in let odd = (dproc x) if (zero? x) then 0 else (dapply even (- x 1))
+                        in (dapply odd 13)"
+                    (empty-env)))
+              1)
+(check-equal? (expval->num
+               (run "let even = (dproc x) if (zero? x) then 1 else (dapply odd (- x 1))
+                     in let odd = (dproc x) if (zero? x) then 0 else (dapply even (- x 1))
+                        in (dapply odd 28)"
+                    (empty-env)))
+              0)
