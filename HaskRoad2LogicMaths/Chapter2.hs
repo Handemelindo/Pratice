@@ -21,17 +21,20 @@ module Code.Pratice.HaskRoad2LogicMaths.Chapter2 where
   x <+> y = x /= y
 
   class TF p where
-    valid  :: p -> Bool
-    lequiv :: p -> p -> Bool
+    invalid :: p -> Bool
+    valid   :: p -> Bool
+    lequiv  :: p -> p -> Bool
 
   instance TF Bool
     where
+      invalid    = not
       valid      = id
       lequiv p q = p == q
 
   instance TF p => TF (Bool -> p)
     where
-      valid  f   = and [valid (f q) | q <- [True, False]]
+      invalid f  = and [invalid (f q) | q <- [True, False]]
+      valid   f  = and [valid (f q) | q <- [True, False]]
       lequiv f g = and [lequiv (f q) (g q) | q <- [True, False]]
 
   -- Exercise 2.9
@@ -88,3 +91,26 @@ module Code.Pratice.HaskRoad2LogicMaths.Chapter2 where
 
   -- contradiction
   law14 = lequiv (\p -> not p && p) (\p -> False)
+
+  exercise2_10 = and [l1, l2, l3, l4, l5, l6, l7]
+                where
+                  -- ¬p => q <=> p \/ q
+                  -- p => ¬q <=> ¬p \/ ¬q <=> p /\ q
+                  l1 = not $ lequiv (\p q -> not p ==> q) (\p q -> p ==> not q)
+                  -- ¬p => q <=> p \/ q <=> q \/ p <=> ¬q => p
+                  l2 = not $ lequiv (\p q -> not p ==> q) (\p q -> q ==> not p)
+                  -- ¬p => q <=> p \/ q <=> q \/ p <=> ¬q => p
+                  l3 = lequiv (\p q -> not p ==> q) (\p q -> not q ==> p)
+                  -- p => (q => r) <=> ¬p \/ (¬q \/ r) <=> ¬p \/ ¬q \/ r <=>
+                  -- ¬q \/ ¬p \/ r <=> ¬q \/ (¬p \/ r) <=>
+                  -- ¬q \/ (p => r) <=> q => (p => r)
+                  l4 = lequiv (\p q r -> p ==> (q ==> r)) (\p q r -> q ==> (p ==> r))
+                  -- p => (q => r) <=> ¬p \/ (¬q \/ r) <=> ¬p \/ ¬q \/ r <=>
+                  -- (¬p \/ ¬q) \/ r <=> ¬(¬p \/ ¬q) ==> r <=> (p && q) ==> r
+                  l5 = not $ lequiv (\p q r -> p ==> (q ==> r)) (\p q r -> (p ==> q) ==> r)
+                  -- (p => q) => p <=> (¬p \/ q) => p <=> ¬(¬p \/ q) \/ p
+                  -- <=> (p /\ ¬q) \/ p <=> (p \/ p) /\ (¬q \/ p) <=> p /\ (p \/ ¬q) <=> p
+                  l6 = lequiv (\p q -> (p ==> q) ==> p) (\p q -> p)
+                  -- p \/ q ==> r <=> ¬(p \/ q) \/ r <=> (¬p /\ ¬q) \/ r <=>
+                  -- (¬p \/ r) /\ (¬q \/ r) <=> (p ==> r) /\ (q ==> r)
+                  l7 = lequiv (\p q r -> p || q ==> r) (\p q r -> (p ==> r) && (q ==> r))
