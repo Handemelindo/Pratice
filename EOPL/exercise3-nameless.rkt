@@ -117,6 +117,8 @@
     (expression
      ("let" identifier "=" expression "in" expression) let-exp)
     (expression
+     ("unpack" (arbno identifier) "=" "list" "(" (separated-list expression ",")")" "in" expression) unpack-exp)
+    (expression
      ("if" expression "then" expression "else" expression) if-exp)
     (expression
      ("cond" (arbno expression "==>" expression) "end") cond-exp)
@@ -148,6 +150,19 @@
                     (nameless-let-exp
                      (translation-of val senv)
                      (translation-of body (extend-senv var senv))))
+           (unpack-exp (idens lst body)
+                       (cond ((or (and (null? idens) (not (null? lst)))
+                                  (and (not (null? idens)) (null? lst)))
+                              (eopl:error "identifier and list-expression not match"))
+                             ((null? idens) (translation-of body senv))
+                             (else (let ((head (let-exp
+                                                (car idens)
+                                                (car lst)
+                                                (unpack-exp
+                                                 (cdr idens)
+                                                 (cdr lst)
+                                                 body))))
+                                     (translation-of head senv)))))
            (if-exp (b-exp t-exp f-exp)
                    (nameless-if-exp
                     (translation-of b-exp senv)
@@ -271,3 +286,14 @@
                          (extend-env 'c (num-val 33)
                           (empty-env)))))))))
               22)
+
+(check-equal? (expval->num
+               (run "let u = 7
+                     in unpack x y = list(u, 3)
+                        in -(x, y)"
+                    (empty-env)))
+              4)
+
+;;3.40 letrec, nameless-letrec-var-exp
+;;3.41 let with mutiple expression bindings, use ribcage env, depth and pos
+;;3.42 catch free variable of proc
